@@ -1,0 +1,36 @@
+# Configuración para entrenamiento satelital x2 (más conservador)
+
+model:
+  architecture: "ESPCNMultispectral"
+  scale_factor: 2
+  num_channels: 4
+  num_features: 64
+
+training:
+  epochs: 100
+  batch_size: 12
+  learning_rate: 0.001
+  lr_scheduler:
+    type: "StepLR"
+    step_size: 30
+    gamma: 0.5
+  
+  loss: "L1"
+  
+  train_lr_data: "data/satellite/dataset/train/LR"
+  train_hr_data: "data/satellite/dataset/train/HR"
+  val_lr_data: "data/satellite/dataset/val/LR"
+  val_hr_data: "data/satellite/dataset/val/HR"
+  
+  checkpoint_dir: "weights/satellite"
+  log_dir: "runs/satellite"
+  
+  save_every: 10
+  validate_every: 5
+
+data:
+  num_channels: 4
+  augmentation: true
+
+inference:
+  test_dir: "data/satellite/test"

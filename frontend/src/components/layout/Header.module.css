@@ -1,0 +1,45 @@
+.header {
+    background-color: white;
+    border-bottom: 1px solid var(--gray-200);
+    box-shadow: var(--shadow-sm);
+}
+
+.container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: var(--space-md) var(--space-lg);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.logo {
+    font-size: var(--text-xl);
+    font-weight: var(--font-bold);
+    color: var(--primary);
+}
+
+.actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+}
+
+.userName {
+    font-size: var(--text-sm);
+    color: var(--gray-700);
+}
+
+.logoutButton {
+    padding: var(--space-xs) var(--space-md);
+    background-color: var(--gray-200);
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    color: var(--gray-700);
+    transition: background-color var(--transition-fast);
+}
+
+.logoutButton:hover {
+    background-color: var(--gray-300);
+}

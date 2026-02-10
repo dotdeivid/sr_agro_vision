@@ -1,0 +1,101 @@
+# Phase 4: Evaluation Configuration
+
+# Paths
+paths:
+  sr_results: "results/sr_predictions"
+  hr_ground_truth: "data/satellite/dataset/val/HR"
+  lr_baseline: "data/satellite/dataset/val/LR"
+  output: "results/phase4"
+
+# Agricultural Metrics
+agricultural_metrics:
+  indices:
+    - NDVI
+    - EVI
+    - SAVI
+  thresholds:
+    ndvi_healthy: 0.7
+    ndvi_stress: 0.3
+  output_subdir: "metrics"
+
+# Crop Classification
+crop_classification:
+  classifier:
+    type: "RandomForest"
+    n_estimators: 100
+    max_depth: 20
+    random_state: 42
+  crops:
+    0: "Sin Cultivo"
+    1: "Soja"
+    2: "Maíz"
+    3: "Trigo"
+    4: "Girasol"
+  output_subdir: "classifications"
+
+# Area Estimation
+area_estimation:
+  gsd_meters: 10.0  # Sentinel-2 resolution
+  ndvi_vegetation_threshold: 0.3
+  output_subdir: "area"
+
+# Temporal Analysis
+temporal_analysis:
+  min_observations: 3
+  change_threshold: 0.1  # NDVI change threshold
+  output_subdir: "temporal"
+
+# Economic Analysis
+economic_analysis:
+  # Costs in USD
+  costs:
+    sentinel2_free: 0
+    sr_processing_per_image: 0.05  # GPU cost
+    planet_3m_per_km2: 5.0
+    worldview_50cm_per_km2: 30.0
+  
+  # ROI calculation
+  roi:
+    area_km2: 100
+    yield_value_per_ha: 1000  # USD/ha
+    yield_improvement_percent: 5  # Expected improvement with better monitoring
+  
+  output_subdir: "economic"
+
+# Use Cases
+use_cases:
+  water_stress_detection:
+    enabled: true
+    ndvi_thresholds:
+      severe: 0.3
+      moderate: 0.5
+      mild: 0.6
+      healthy: 0.7
+  
+  crop_health_monitoring:
+    enabled: true
+    indices_weights:
+      ndvi: 0.5
+      evi: 0.3
+      gndvi: 0.2
+  
+  yield_prediction:
+    enabled: false  # Requires training data
+  
+  output_subdir: "use_cases"
+
+# Report Generation
+report:
+  formats:
+    - markdown
+    - latex
+    - json
+  include_visualizations: true
+  output_subdir: "report"
+
+# Evaluation Parameters
+evaluation:
+  n_images: 50  # Number of test images
+  batch_size: 10
+  visualize_all: false  # Set to true to save all visualizations
+  save_intermediate: true

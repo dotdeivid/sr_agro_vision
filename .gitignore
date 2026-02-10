@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.env
+
+# PyTorch
+*.pth
+*.pt
+
+# Data
+data/datasets/
+weights/
+results/
+*.png
+*.jpg
+*.jpeg
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+runs/
+
+# Satellite data
+data/satellite/raw/
+data/satellite/preprocessed/
+data/satellite/dataset/
+

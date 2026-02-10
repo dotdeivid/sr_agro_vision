@@ -1,0 +1,66 @@
+.container {
+  width: 100%;
+}
+
+.dropzone {
+  border: 2px dashed var(--gray-300);
+  border-radius: var(--radius-lg);
+  padding: var(--space-2xl);
+  text-align: center;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  background-color: var(--gray-50);
+}
+
+.dropzone:hover {
+  border-color: var(--primary);
+  background-color: white;
+}
+
+.dropzone.dragging {
+  border-color: var(--primary);
+  background-color: rgba(16, 185, 129, 0.05);
+  transform: scale(1.02);
+}
+
+.dropzone.error {
+  border-color: var(--danger);
+  background-color: rgba(239, 68, 68, 0.05);
+}
+
+.fileInput {
+  display: none;
+}
+
+.icon {
+  font-size: 4rem;
+  margin-bottom: var(--space-md);
+}
+
+.text {
+  font-size: var(--text-lg);
+  font-weight: var(--font-medium);
+  color: var(--gray-700);
+  margin-bottom: var(--space-xs);
+}
+
+.subtext {
+  font-size: var(--text-sm);
+  color: var(--gray-500);
+  margin-bottom: var(--space-md);
+}
+
+.formats {
+  font-size: var(--text-xs);
+  color: var(--gray-400);
+}
+
+.errorMessage {
+  margin-top: var(--space-md);
+  padding: var(--space-sm);
+  background-color: #fee2e2;
+  color: var(--danger);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  text-align: center;
+}

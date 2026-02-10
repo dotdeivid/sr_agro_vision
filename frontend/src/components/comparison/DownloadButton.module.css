@@ -1,0 +1,10 @@
+.container {
+    text-align: center;
+}
+
+.filename {
+    margin-top: var(--space-sm);
+    font-size: var(--text-sm);
+    color: var(--gray-600);
+    word-break: break-all;
+}

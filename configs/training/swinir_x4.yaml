@@ -1,0 +1,40 @@
+# Configuración para entrenamiento satelital x4 con SwinIR
+
+model:
+  architecture: "SwinIRMultispectral"
+  scale_factor: 4
+  num_channels: 4  # RGB + NIR
+  embed_dim: 60
+  depths: [6, 6, 6, 6]
+  num_heads: [6, 6, 6, 6]
+  window_size: 8
+
+training:
+  epochs: 200  # SwinIR necesita más epochs
+  batch_size: 4  # Menor porque Transformer usa más memoria
+  learning_rate: 0.0002
+  lr_scheduler:
+    type: "CosineAnnealingLR"
+    T_max: 200
+  
+  loss: "CombinedLoss"  # L1 + Perceptual
+  
+  # Paths
+  train_lr_data: "data/satellite/dataset/train/LR"
+  train_hr_data: "data/satellite/dataset/train/HR"
+  val_lr_data: "data/satellite/dataset/val/LR"
+  val_hr_data: "data/satellite/dataset/val/HR"
+  
+  checkpoint_dir: "weights/satellite_swinir"
+  log_dir: "runs/satellite_swinir"
+  
+  save_every: 10
+  validate_every: 5
+
+data:
+  num_channels: 4
+  patch_size: 128
+  augmentation: true
+
+inference:
+  test_dir: "data/satellite/test"

@@ -1,0 +1,38 @@
+.container {
+    max-width: 1200px;
+}
+
+.header {
+    margin-bottom: var(--space-2xl);
+}
+
+.title {
+    font-size: var(--text-3xl);
+    font-weight: var(--font-bold);
+    color: var(--gray-900);
+    margin-bottom: var(--space-xs);
+}
+
+.subtitle {
+    font-size: var(--text-base);
+    color: var(--gray-600);
+}
+
+.uploadSection {
+    margin-bottom: var(--space-2xl);
+}
+
+.error {
+    margin-top: var(--space-md);
+    padding: var(--space-md);
+    background-color: #fee2e2;
+    color: var(--danger);
+    border-radius: var(--radius-md);
+    text-align: center;
+}
+
+.separator {
+    height: 1px;
+    background-color: var(--gray-200);
+    margin: var(--space-2xl) 0;
+}

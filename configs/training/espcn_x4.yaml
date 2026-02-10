@@ -1,0 +1,38 @@
+# Configuración para entrenamiento satelital x4
+
+model:
+  architecture: "ESPCNMultispectral"
+  scale_factor: 4
+  num_channels: 4  # RGB + NIR
+  num_features: 64
+
+training:
+  epochs: 150
+  batch_size: 16  # Aumentado para GTX 1660 (6GB VRAM)
+  learning_rate: 0.0005  # Menor LR para datos satelitales
+  lr_scheduler:
+    type: "StepLR"
+    step_size: 50
+    gamma: 0.5
+  
+  loss: "L1"  # L1 funciona bien con datos satelitales
+  
+  # Paths (actualizar según tu estructura)
+  train_lr_data: "data/satellite/dataset/train/LR"
+  train_hr_data: "data/satellite/dataset/train/HR"
+  val_lr_data: "data/satellite/dataset/val/LR"
+  val_hr_data: "data/satellite/dataset/val/HR"
+  
+  checkpoint_dir: "weights/satellite"
+  log_dir: "runs/satellite"
+  
+  save_every: 10
+  validate_every: 5
+
+data:
+  num_channels: 4
+  patch_size: 128  # Tamaño de patches para entrenamiento
+  augmentation: true
+
+inference:
+  test_dir: "data/satellite/test"

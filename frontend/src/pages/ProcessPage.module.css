@@ -1,0 +1,96 @@
+.container {
+    max-width: 900px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2xl);
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-lg);
+}
+
+.title {
+    font-size: var(--text-3xl);
+    font-weight: var(--font-bold);
+    color: var(--gray-900);
+}
+
+.loading,
+.error {
+    text-align: center;
+    padding: var(--space-2xl);
+    color: var(--gray-600);
+}
+
+.error {
+    color: var(--danger);
+    background-color: #fee2e2;
+    border-radius: var(--radius-md);
+}
+
+/* Image Info Card */
+.imageInfo {
+    display: flex;
+    align-items: center;
+    gap: var(--space-lg);
+}
+
+.imageIcon {
+    font-size: 3rem;
+    background-color: var(--gray-100);
+    padding: var(--space-lg);
+    border-radius: var(--radius-md);
+}
+
+.imageDetails {
+    flex: 1;
+}
+
+.imageName {
+    font-size: var(--text-xl);
+    font-weight: var(--font-semibold);
+    color: var(--gray-900);
+    margin-bottom: var(--space-xs);
+}
+
+.imageMetadata {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-size: var(--text-sm);
+    color: var(--gray-600);
+}
+
+/* Error Message */
+.errorMessage {
+    padding: var(--space-md);
+    background-color: #fee2e2;
+    color: var(--danger);
+    border-radius: var(--radius-md);
+    text-align: center;
+}
+
+/* Failed Card */
+.failedCard {
+    background-color: white;
+    border-radius: var(--radius-lg);
+    padding: var(--space-2xl);
+    box-shadow: var(--shadow-sm);
+    border: 2px solid var(--danger);
+    text-align: center;
+}
+
+.failedCard h3 {
+    font-size: var(--text-xl);
+    font-weight: var(--font-bold);
+    color: var(--danger);
+    margin-bottom: var(--space-md);
+}
+
+.failedCard p {
+    color: var(--gray-700);
+    margin-bottom: var(--space-lg);
+}

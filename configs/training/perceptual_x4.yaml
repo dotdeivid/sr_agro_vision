@@ -1,0 +1,38 @@
+# Configuración para entrenamiento satelital x4 con Perceptual Loss
+
+model:
+  architecture: "ESPCNMultispectral"
+  scale_factor: 4
+  num_channels: 4  # RGB + NIR
+  num_features: 64
+
+training:
+  epochs: 150
+  batch_size: 6  # Reducido por VGG16 memory usage
+  learning_rate: 0.0005
+  lr_scheduler:
+    type: "StepLR"
+    step_size: 50
+    gamma: 0.5
+  
+  loss: "CombinedLoss"  # L1 + Perceptual Loss
+  
+  # Paths
+  train_lr_data: "data/satellite/dataset/train/LR"
+  train_hr_data: "data/satellite/dataset/train/HR"
+  val_lr_data: "data/satellite/dataset/val/LR"
+  val_hr_data: "data/satellite/dataset/val/HR"
+  
+  checkpoint_dir: "weights/satellite_perceptual"
+  log_dir: "runs/satellite_perceptual"
+  
+  save_every: 10
+  validate_every: 5
+
+data:
+  num_channels: 4
+  patch_size: 128
+  augmentation: true  # Usar augmentation mejorado
+
+inference:
+  test_dir: "data/satellite/test"
