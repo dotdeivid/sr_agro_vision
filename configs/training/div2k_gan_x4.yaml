@@ -1,0 +1,37 @@
+# Config DIV2K - GAN x4 (RGB Standard)
+
+model:
+  architecture: "SRGAN"
+  scale_factor: 4
+  num_channels: 3  # RGB
+  num_features: 64
+
+data:
+  dataset_type: "rgb"
+  num_channels: 3
+  patch_size: 256
+  augmentation: true
+
+training:
+  epochs: 150
+  batch_size: 8
+  learning_rate: 0.0001
+  lr_scheduler:
+    type: "StepLR"
+    step_size: 50
+    gamma: 0.5
+  loss: "CombinedLoss"
+  
+  train_lr_data: "data/datasets/train/LR"
+  train_hr_data: "data/datasets/train/HR"
+  val_lr_data: "data/datasets/val/LR"
+  val_hr_data: "data/datasets/val/HR"
+  
+  checkpoint_dir: "outputs/weights/div2k_gan_x4"
+  log_dir: "outputs/logs/div2k_gan_x4"
+  
+  save_every: 10
+  validate_every: 5
+
+inference:
+  test_dir: "outputs/tests/div2k_gan_x4"

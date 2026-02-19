@@ -1,5 +1,6 @@
 """
 Genera pares de imágenes LR-HR para entrenamiento
+Soporta GeoTIFF (Sentinel-2) y PNG/JPG (DIV2K)
 """
 
 import numpy as np
@@ -9,7 +10,10 @@ import rasterio
 from tqdm import tqdm
 import sys
 
-sys.path.append(str(Path(__file__).parent.parent.parent))
+# Corregir sys.path para que encuentre 'src' en Colab y local
+# Colab: /content/colab_training/scripts/.. = /content/colab_training/
+# Local: ~/proyecto/scripts/.. = ~/proyecto/
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.utils.geotiff import save_geotiff
 
@@ -102,9 +106,10 @@ def process_image_to_pairs(
 ):
     """
     Procesa una imagen HR: crea LR, extrae patches, guarda pares
+    Soporta GeoTIFF (.tif) y PNG/JPG (.png, .jpg)
 
     Args:
-        hr_image_path: Path a GeoTIFF HR de 4 canales
+        hr_image_path: Path a imagen HR (GeoTIFF, PNG o JPG)
         output_dir: Directorio de salida
         scale_factor: Factor de reducción
         patch_size: Tamaño de patches HR
@@ -113,21 +118,30 @@ def process_image_to_pairs(
     Returns:
         Number of patches created
     """
+    hr_image_path = Path(hr_image_path)
     output_dir = Path(output_dir)
+    
     lr_dir = output_dir / "LR"
     hr_dir = output_dir / "HR"
     lr_dir.mkdir(parents=True, exist_ok=True)
     hr_dir.mkdir(parents=True, exist_ok=True)
 
-    # Cargar imagen HR
-    with rasterio.open(hr_image_path) as src:
-        hr_image = src.read()  # [C, H, W]
-        metadata = src.meta
+    # Cargar imagen según el tipo de archivo
+    if hr_image_path.suffix.lower() in ['.png', '.jpg', '.jpeg']:
+        # Para PNG/JPG (DIV2K y datasets genéricos)
+        hr_pil = Image.open(hr_image_path).convert('RGB')
+        hr_image = np.array(hr_pil).astype(np.float32) / 255.0  # [H, W, C]
+        hr_image = hr_image.transpose(2, 0, 1)  # Convertir a [C, H, W]
+    else:
+        # Para GeoTIFF (Sentinel-2)
+        with rasterio.open(hr_image_path) as src:
+            hr_image = src.read()  # [C, H, W]
+            metadata = src.meta
 
-    # Normalizar si es necesario
-    if hr_image.max() > 1.0:
-        hr_image = hr_image.astype(np.float32) / 10000.0  # Sentinel-2 L2A
-        hr_image = np.clip(hr_image, 0, 1)
+        # Normalizar si es necesario
+        if hr_image.max() > 1.0:
+            hr_image = hr_image.astype(np.float32) / 10000.0  # Sentinel-2 L2A
+            hr_image = np.clip(hr_image, 0, 1)
 
     # Crear versión LR
     lr_image = create_lr_from_hr(hr_image, scale_factor=scale_factor)
@@ -172,7 +186,7 @@ def batch_create_pairs(
     Procesa múltiples imágenes y crea dataset train/val
 
     Args:
-        input_dir: Directorio con GeoTIFFs preprocesados
+        input_dir: Directorio con imágenes (GeoTIFF, PNG o JPG)
         output_dir: Directorio de salida
         scale_factor: Factor de escalado
         patch_size: Tamaño de patches HR
@@ -182,11 +196,20 @@ def batch_create_pairs(
     input_dir = Path(input_dir)
     output_dir = Path(output_dir)
 
-    # Buscar imágenes procesadas
+    # Buscar imágenes (GeoTIFF, PNG, JPG)
     image_files = list(input_dir.glob("*.tif"))
+    
+    if len(image_files) == 0:
+        image_files = list(input_dir.glob("*.png"))
+    
+    if len(image_files) == 0:
+        image_files = list(input_dir.glob("*.jpg"))
+    
+    if len(image_files) == 0:
+        image_files = list(input_dir.glob("*.jpeg"))
 
     if len(image_files) == 0:
-        print(f"❌ No se encontraron imágenes en {input_dir}")
+        print(f"❌ No se encontraron imágenes (.tif, .png, .jpg) en {input_dir}")
         return
 
     print(f"📂 Encontradas {len(image_files)} imágenes")
@@ -218,6 +241,8 @@ def batch_create_pairs(
         print("❌ No se crearon patches")
         return
 
+    print(f"✅ Total patches extraídos: {total_patches}")
+
     # Split train/val
     split_idx = int(total_patches * train_split)
 
@@ -225,6 +250,8 @@ def batch_create_pairs(
     train_hr_patches = all_hr_patches[:split_idx]
     val_lr_patches = all_lr_patches[split_idx:]
     val_hr_patches = all_hr_patches[split_idx:]
+
+    print(f"📊 Split: {len(train_lr_patches)} train, {len(val_lr_patches)} val")
 
     # Crear directorios finales
     train_lr_dir = output_dir / "train" / "LR"
@@ -235,8 +262,8 @@ def batch_create_pairs(
     for d in [train_lr_dir, train_hr_dir, val_lr_dir, val_hr_dir]:
         d.mkdir(parents=True, exist_ok=True)
 
-    # Mover patches a train/val
-    print("\n📦 Organizando dataset...")
+    # Mover patches a train/val (usar rename en vez de copy - más eficiente)
+    print("📦 Organizando dataset...")
 
     for src, dst_dir in zip(train_lr_patches, [train_lr_dir] * len(train_lr_patches)):
         src.rename(dst_dir / src.name)
@@ -252,7 +279,6 @@ def batch_create_pairs(
 
     # Limpiar directorio temporal
     import shutil
-
     shutil.rmtree(output_dir / "temp")
 
     # Resumen
@@ -288,34 +314,57 @@ def batch_create_pairs(
         json.dump(dataset_info, f, indent=2)
 
 
-if __name__ == "__main__":
+def main(args=None):
+    """
+    Función main para ser llamada desde main.py o directamente
+
+    Args:
+        args: Argumentos parseados (opcional, si None se parsean desde consola)
+    """
     import argparse
 
-    parser = argparse.ArgumentParser(description="Crear pares LR-HR para entrenamiento")
-    parser.add_argument(
-        "--input", type=str, required=True, help="Directorio con GeoTIFFs preprocesados"
-    )
-    parser.add_argument(
-        "--output", type=str, required=True, help="Directorio de salida"
-    )
-    parser.add_argument(
-        "--scale", type=int, default=4, choices=[2, 4, 8], help="Factor de escalado"
-    )
-    parser.add_argument(
-        "--patch-size", type=int, default=256, help="Tamaño de patches HR"
-    )
-    parser.add_argument("--stride", type=int, default=128, help="Paso entre patches")
-    parser.add_argument(
-        "--train-split", type=float, default=0.8, help="Proporción de train (0.8 = 80%)"
-    )
+    if args is None:
+        # Si se llama directamente desde consola, parsear argumentos
+        parser = argparse.ArgumentParser(
+            description="Crear pares LR-HR para entrenamiento"
+        )
+        parser.add_argument(
+            "--input",
+            type=str,
+            required=True,
+            help="Directorio con imágenes (GeoTIFF, PNG o JPG)",
+        )
+        parser.add_argument(
+            "--output", type=str, required=True, help="Directorio de salida"
+        )
+        parser.add_argument(
+            "--scale", type=int, default=4, choices=[2, 4, 8], help="Factor de escalado"
+        )
+        parser.add_argument(
+            "--patch-size", type=int, default=256, help="Tamaño de patches HR"
+        )
+        parser.add_argument(
+            "--stride", type=int, default=128, help="Paso entre patches"
+        )
+        parser.add_argument(
+            "--train-split",
+            type=float,
+            default=0.8,
+            help="Proporción de train (0.8 = 80%)",
+        )
 
-    args = parser.parse_args()
+        args = parser.parse_args()
 
+    # Ejecutar función principal
     batch_create_pairs(
-        args.input,
-        args.output,
+        input_dir=args.input,
+        output_dir=args.output,
         scale_factor=args.scale,
         patch_size=args.patch_size,
         stride=args.stride,
         train_split=args.train_split,
     )
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,38 @@
+# Config DIV2K - SwinIR x4 (RGB Standard)
+
+model:
+  architecture: "SwinIR"
+  scale_factor: 4
+  num_channels: 3  # RGB
+  num_features: 64
+  depths: [6, 6, 6, 6]
+  num_heads: [6, 6, 6, 6]
+
+data:
+  dataset_type: "rgb"
+  num_channels: 3
+  patch_size: 256
+  augmentation: true
+
+training:
+  epochs: 120
+  batch_size: 8
+  learning_rate: 0.0002
+  lr_scheduler:
+    type: "CosineAnnealingLR"
+    T_max: 120
+  loss: "L1"
+  
+  train_lr_data: "data/datasets/train/LR"
+  train_hr_data: "data/datasets/train/HR"
+  val_lr_data: "data/datasets/val/LR"
+  val_hr_data: "data/datasets/val/HR"
+  
+  checkpoint_dir: "outputs/weights/div2k_swinir_x4"
+  log_dir: "outputs/logs/div2k_swinir_x4"
+  
+  save_every: 10
+  validate_every: 5
+
+inference:
+  test_dir: "outputs/tests/div2k_swinir_x4"

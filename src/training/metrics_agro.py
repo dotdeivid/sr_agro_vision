@@ -13,17 +13,21 @@ from src.training.metrics import calculate_psnr, calculate_ssim
 from src.utils.ndvi import calculate_ndvi
 
 
-def calculate_ndvi_error(sr_img, hr_img):
+def calculate_ndvi_error(sr_img, hr_img, dataset_type="multiespectral"):
     """
-    Calcula error en NDVI entre imagen SR y HR
+    Calcula error en NDVI (solo para imágenes multiespectrales)
 
     Args:
-        sr_img: Imagen SR [B, 4, H, W] o [4, H, W] (R,G,B,NIR)
-        hr_img: Imagen HR (ground truth)
+        sr_img: [C, H, W] donde C puede ser 3 (RGB) o 4 (RGB+NIR)
+        hr_img: [C, H, W]
+        dataset_type: Tipo de dataset ('multiespectral' o 'rgb')
 
     Returns:
-        MAE del NDVI
+        MAE del NDVI (0.0 si es RGB)
     """
+    if dataset_type != "multiespectral" or sr_img.shape[0] < 4:
+        return 0.0  # No hay NIR, no se puede calcular NDVI
+
     # Manejar batch
     if sr_img.dim() == 4:
         sr_img = sr_img[0]  # Tomar primera imagen del batch
@@ -35,6 +39,7 @@ def calculate_ndvi_error(sr_img, hr_img):
     if isinstance(hr_img, torch.Tensor):
         hr_img = hr_img.detach().cpu().numpy()
 
+    # Calcular NDVI solo si hay 4 canales
     # Extraer bandas Red (canal 0) y NIR (canal 3)
     sr_red = sr_img[0]
     sr_nir = sr_img[3]
@@ -99,13 +104,14 @@ def calculate_spectral_angle(sr_img, hr_img):
     return sam
 
 
-def evaluate_satellite_metrics(sr_img, hr_img):
+def evaluate_satellite_metrics(sr_img, hr_img, dataset_type="multiespectral"):
     """
-    Calcula todas las métricas relevantes para imágenes satelitales
+    Calcula todas las métricas relevantes para imágenes
 
     Args:
-        sr_img: Imagen SR [B, 4, H, W] o [4, H, W]
+        sr_img: Imagen SR [B, C, H, W] o [C, H, W]
         hr_img: Imagen HR
+        dataset_type: Tipo de dataset ('multiespectral' o 'rgb')
 
     Returns:
         dict con métricas
@@ -119,11 +125,15 @@ def evaluate_satellite_metrics(sr_img, hr_img):
     psnr = calculate_psnr(sr_img, hr_img, max_value=1.0)
     ssim = calculate_ssim(sr_img, hr_img, max_value=1.0)
 
-    # Métricas específicas de agricultura
-    ndvi_mae = calculate_ndvi_error(sr_img, hr_img)
-    sam = calculate_spectral_angle(
-        sr_img[0], hr_img[0]
-    )  # Tomar primer elemento del batch
+    # Métricas específicas de agricultura (solo si es multiespectral)
+    if dataset_type == "multiespectral":
+        ndvi_mae = calculate_ndvi_error(sr_img, hr_img, dataset_type="multiespectral")
+        sam = calculate_spectral_angle(
+            sr_img[0], hr_img[0]
+        )  # Tomar primer elemento del batch
+    else:
+        ndvi_mae = 0.0
+        sam = 0.0
 
     metrics = {"psnr": psnr, "ssim": ssim, "ndvi_mae": ndvi_mae, "sam": sam}
 
@@ -133,7 +143,12 @@ def evaluate_satellite_metrics(sr_img, hr_img):
 class AgricultureMetricsTracker:
     """Clase para trackear métricas durante entrenamiento"""
 
-    def __init__(self):
+    def __init__(self, dataset_type="multiespectral"):
+        """
+        Args:
+            dataset_type: Tipo de dataset ('multiespectral' o 'rgb')
+        """
+        self.dataset_type = dataset_type
         self.reset()
 
     def reset(self):
@@ -155,7 +170,7 @@ class AgricultureMetricsTracker:
 
         for i in range(batch_size):
             metrics = evaluate_satellite_metrics(
-                sr_batch[i : i + 1], hr_batch[i : i + 1]
+                sr_batch[i : i + 1], hr_batch[i : i + 1], dataset_type=self.dataset_type
             )
 
             self.psnr_sum += metrics["psnr"]

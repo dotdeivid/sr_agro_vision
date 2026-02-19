@@ -1,11 +1,11 @@
-# Phase 4: Evaluation Configuration
+# Evaluation Configuration
 
 # Paths
 paths:
-  sr_results: "results/sr_predictions"
-  hr_ground_truth: "data/satellite/dataset/val/HR"
-  lr_baseline: "data/satellite/dataset/val/LR"
-  output: "results/phase4"
+  sr_results: "outputs/results/sr"
+  hr_ground_truth: "data/datasets/val/HR"
+  lr_baseline: "data/datasets/val/LR"
+  output: "outputs/reports"
 
 # Agricultural Metrics
 agricultural_metrics:
@@ -99,3 +99,4 @@ evaluation:
   batch_size: 10
   visualize_all: false  # Set to true to save all visualizations
   save_intermediate: true
+  dataset_type: "rgb"  # "multiespectral" or "rgb"

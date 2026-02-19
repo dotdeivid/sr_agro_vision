@@ -16,7 +16,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from src.models.espcn import ESPCNMultispectral
 from src.utils.device import get_device
-from src.training.metrics_agriculture import evaluate_satellite_metrics
+from src.training.metrics_agro import evaluate_satellite_metrics
 from src.utils.ndvi import calculate_ndvi
 from scipy.ndimage import zoom
 
@@ -41,10 +41,12 @@ def upscale_bicubic(lr_image, scale_factor):
     return sr_image
 
 
-def visualize_comparison(lr_img, bicubic_sr, model_sr, hr_img, output_path, num_channels=4):
+def visualize_comparison(
+    lr_img, bicubic_sr, model_sr, hr_img, output_path, num_channels=4
+):
     """
     Crea visualización comparativa de LR, Bicúbico, Modelo SR y HR
-    
+
     Args:
         lr_img: Imagen LR [C, H, W]
         bicubic_sr: SR bicúbico [C, H, W]
@@ -54,7 +56,7 @@ def visualize_comparison(lr_img, bicubic_sr, model_sr, hr_img, output_path, num_
         num_channels: Número de canales
     """
     fig, axes = plt.subplots(2, 4, figsize=(20, 10))
-    
+
     # Convertir tensors a numpy si es necesario
     if torch.is_tensor(lr_img):
         lr_img = lr_img.cpu().numpy()
@@ -64,30 +66,30 @@ def visualize_comparison(lr_img, bicubic_sr, model_sr, hr_img, output_path, num_
         model_sr = model_sr.cpu().numpy()
     if torch.is_tensor(hr_img):
         hr_img = hr_img.cpu().numpy()
-    
+
     # Usar RGB (primeros 3 canales) para visualización
     lr_rgb = np.clip(lr_img[:3].transpose(1, 2, 0), 0, 1)
     bicubic_rgb = np.clip(bicubic_sr[:3].transpose(1, 2, 0), 0, 1)
     model_rgb = np.clip(model_sr[:3].transpose(1, 2, 0), 0, 1)
     hr_rgb = np.clip(hr_img[:3].transpose(1, 2, 0), 0, 1)
-    
+
     # Fila 1: Imágenes RGB
     axes[0, 0].imshow(lr_rgb)
-    axes[0, 0].set_title('LR (Input)', fontsize=14, fontweight='bold')
-    axes[0, 0].axis('off')
-    
+    axes[0, 0].set_title("LR (Input)", fontsize=14, fontweight="bold")
+    axes[0, 0].axis("off")
+
     axes[0, 1].imshow(bicubic_rgb)
-    axes[0, 1].set_title('Bicubic SR', fontsize=14, fontweight='bold')
-    axes[0, 1].axis('off')
-    
+    axes[0, 1].set_title("Bicubic SR", fontsize=14, fontweight="bold")
+    axes[0, 1].axis("off")
+
     axes[0, 2].imshow(model_rgb)
-    axes[0, 2].set_title('Model SR (ESPCN)', fontsize=14, fontweight='bold')
-    axes[0, 2].axis('off')
-    
+    axes[0, 2].set_title("Model SR (ESPCN)", fontsize=14, fontweight="bold")
+    axes[0, 2].axis("off")
+
     axes[0, 3].imshow(hr_rgb)
-    axes[0, 3].set_title('HR (Ground Truth)', fontsize=14, fontweight='bold')
-    axes[0, 3].axis('off')
-    
+    axes[0, 3].set_title("HR (Ground Truth)", fontsize=14, fontweight="bold")
+    axes[0, 3].axis("off")
+
     # Fila 2: Mapas NDVI (si hay 4 canales)
     if num_channels >= 4:
         # Calcular NDVI para cada imagen (red=canal 0, NIR=canal 3)
@@ -95,7 +97,7 @@ def visualize_comparison(lr_img, bicubic_sr, model_sr, hr_img, output_path, num_
         ndvi_bicubic = calculate_ndvi(bicubic_sr[0], bicubic_sr[3])
         ndvi_model = calculate_ndvi(model_sr[0], model_sr[3])
         ndvi_hr = calculate_ndvi(hr_img[0], hr_img[3])
-        
+
         # Convertir a numpy
         if torch.is_tensor(ndvi_lr):
             ndvi_lr = ndvi_lr.cpu().numpy()
@@ -105,40 +107,51 @@ def visualize_comparison(lr_img, bicubic_sr, model_sr, hr_img, output_path, num_
             ndvi_model = ndvi_model.cpu().numpy()
         if torch.is_tensor(ndvi_hr):
             ndvi_hr = ndvi_hr.cpu().numpy()
-        
+
         # Visualizar NDVI con colormap
-        im0 = axes[1, 0].imshow(ndvi_lr, cmap='RdYlGn', vmin=-1, vmax=1)
-        axes[1, 0].set_title('NDVI - LR', fontsize=12)
-        axes[1, 0].axis('off')
-        
-        im1 = axes[1, 1].imshow(ndvi_bicubic, cmap='RdYlGn', vmin=-1, vmax=1)
-        axes[1, 1].set_title('NDVI - Bicubic', fontsize=12)
-        axes[1, 1].axis('off')
-        
-        im2 = axes[1, 2].imshow(ndvi_model, cmap='RdYlGn', vmin=-1, vmax=1)
-        axes[1, 2].set_title('NDVI - Model SR', fontsize=12)
-        axes[1, 2].axis('off')
-        
-        im3 = axes[1, 3].imshow(ndvi_hr, cmap='RdYlGn', vmin=-1, vmax=1)
-        axes[1, 3].set_title('NDVI - HR (GT)', fontsize=12)
-        axes[1, 3].axis('off')
-        
+        im0 = axes[1, 0].imshow(ndvi_lr, cmap="RdYlGn", vmin=-1, vmax=1)
+        axes[1, 0].set_title("NDVI - LR", fontsize=12)
+        axes[1, 0].axis("off")
+
+        im1 = axes[1, 1].imshow(ndvi_bicubic, cmap="RdYlGn", vmin=-1, vmax=1)
+        axes[1, 1].set_title("NDVI - Bicubic", fontsize=12)
+        axes[1, 1].axis("off")
+
+        im2 = axes[1, 2].imshow(ndvi_model, cmap="RdYlGn", vmin=-1, vmax=1)
+        axes[1, 2].set_title("NDVI - Model SR", fontsize=12)
+        axes[1, 2].axis("off")
+
+        im3 = axes[1, 3].imshow(ndvi_hr, cmap="RdYlGn", vmin=-1, vmax=1)
+        axes[1, 3].set_title("NDVI - HR (GT)", fontsize=12)
+        axes[1, 3].axis("off")
+
         # Agregar colorbar
-        fig.colorbar(im3, ax=axes[1, :], orientation='horizontal', 
-                    fraction=0.05, pad=0.05, label='NDVI Value')
+        fig.colorbar(
+            im3,
+            ax=axes[1, :],
+            orientation="horizontal",
+            fraction=0.05,
+            pad=0.05,
+            label="NDVI Value",
+        )
     else:
         # Si no hay NIR, ocultar segunda fila
         for ax in axes[1, :]:
-            ax.axis('off')
-    
+            ax.axis("off")
+
     plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close()
 
 
 def evaluate_on_test_set(
-    test_dir, model_path, num_channels=4, scale_factor=4, device=None,
-    visualize=False, output_dir=None
+    test_dir,
+    model_path,
+    num_channels=4,
+    scale_factor=4,
+    device=None,
+    visualize=False,
+    output_dir=None,
 ):
     """
     Evalúa modelo en test set y compara con bicúbico
@@ -169,7 +182,9 @@ def evaluate_on_test_set(
     model = ESPCNMultispectral(
         scale_factor=scale_factor, num_channels=num_channels, num_features=64
     )
-    model.load_state_dict(torch.load(model_path, map_location=device))
+    model.load_state_dict(
+        torch.load(model_path, map_location=device, weights_only=True)
+    )
     model.to(device)
     model.eval()
 
@@ -196,7 +211,7 @@ def evaluate_on_test_set(
         # Limitar visualizaciones a las primeras 10 imágenes para no saturar
         max_visualizations = 10
         viz_count = 0
-    
+
     for idx, lr_path in enumerate(tqdm(lr_images)):
         hr_path = hr_dir / lr_path.name
 
@@ -235,13 +250,17 @@ def evaluate_on_test_set(
         results["bicubic"]["ssim"].append(metrics_bicubic["ssim"])
         results["bicubic"]["ndvi_mae"].append(metrics_bicubic["ndvi_mae"])
         results["bicubic"]["sam"].append(metrics_bicubic["sam"])
-        
+
         # Generar visualización si está habilitado
         if visualize and output_dir and viz_count < max_visualizations:
             viz_path = output_dir / f"comparison_{idx:04d}.png"
             visualize_comparison(
-                lr_img, sr_bicubic, sr_model, hr_torch,
-                viz_path, num_channels=num_channels
+                lr_img,
+                sr_bicubic,
+                sr_model,
+                hr_torch,
+                viz_path,
+                num_channels=num_channels,
             )
             viz_count += 1
 
@@ -347,23 +366,22 @@ if __name__ == "__main__":
         "--scale", type=int, default=4, choices=[2, 4, 8], help="Factor de escalado"
     )
     parser.add_argument(
-        "--visualize",
-        action="store_true",
-        help="Generar visualizaciones comparativas"
+        "--visualize", action="store_true", help="Generar visualizaciones comparativas"
     )
     parser.add_argument(
         "--output-dir",
         type=str,
         default="results/visualizations",
-        help="Directorio para guardar visualizaciones"
+        help="Directorio para guardar visualizaciones",
     )
 
     args = parser.parse_args()
 
     evaluate_on_test_set(
-        args.test_dir, args.model, 
-        num_channels=args.channels, 
+        args.test_dir,
+        args.model,
+        num_channels=args.channels,
         scale_factor=args.scale,
         visualize=args.visualize,
-        output_dir=args.output_dir
+        output_dir=args.output_dir,
     )

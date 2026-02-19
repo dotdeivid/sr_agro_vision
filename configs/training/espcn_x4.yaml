@@ -6,6 +6,12 @@ model:
   num_channels: 4  # RGB + NIR
   num_features: 64
 
+data:
+  dataset_type: "multiespectral"  # Nuevo flag
+  num_channels: 4
+  patch_size: 128
+  augmentation: true
+
 training:
   epochs: 150
   batch_size: 16  # Aumentado para GTX 1660 (6GB VRAM)
@@ -18,13 +24,13 @@ training:
   loss: "L1"  # L1 funciona bien con datos satelitales
   
   # Paths (actualizar según tu estructura)
-  train_lr_data: "data/satellite/dataset/train/LR"
-  train_hr_data: "data/satellite/dataset/train/HR"
-  val_lr_data: "data/satellite/dataset/val/LR"
-  val_hr_data: "data/satellite/dataset/val/HR"
+  train_lr_data: "data/datasets/train/LR"
+  train_hr_data: "data/datasets/train/HR"
+  val_lr_data: "data/datasets/val/LR"
+  val_hr_data: "data/datasets/val/HR"
   
-  checkpoint_dir: "weights/satellite"
-  log_dir: "runs/satellite"
+  checkpoint_dir: "outputs/weights/espcn_x4"
+  log_dir: "outputs/logs/espcn_x4"
   
   save_every: 10
   validate_every: 5
@@ -35,4 +41,4 @@ data:
   augmentation: true
 
 inference:
-  test_dir: "data/satellite/test"
+  test_dir: "outputs/tests/espcn_x4"

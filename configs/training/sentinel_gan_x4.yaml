@@ -1,0 +1,37 @@
+# Config Sentinel-2 - GAN x4 (Multiespectral)
+
+model:
+  architecture: "SRGAN"
+  scale_factor: 4
+  num_channels: 4  # RGB + NIR
+  num_features: 64
+
+data:
+  dataset_type: "multiespectral"
+  num_channels: 4
+  patch_size: 256
+  augmentation: true
+
+training:
+  epochs: 200
+  batch_size: 8
+  learning_rate: 0.0001
+  lr_scheduler:
+    type: "StepLR"
+    step_size: 50
+    gamma: 0.5
+  loss: "CombinedLoss"
+  
+  train_lr_data: "data/datasets/train/LR"
+  train_hr_data: "data/datasets/train/HR"
+  val_lr_data: "data/datasets/val/LR"
+  val_hr_data: "data/datasets/val/HR"
+  
+  checkpoint_dir: "outputs/weights/sentinel_gan_x4"
+  log_dir: "outputs/logs/sentinel_gan_x4"
+  
+  save_every: 10
+  validate_every: 5
+
+inference:
+  test_dir: "outputs/tests/sentinel_gan_x4"

@@ -6,8 +6,13 @@ import torch
 import argparse
 from pathlib import Path
 import numpy as np
+import warnings
 import rasterio
+import rasterio.errors
 import sys
+
+# Suprimir warning de archivos sin georreferenciación (ej: PNG de prueba)
+warnings.filterwarnings("ignore", category=rasterio.errors.NotGeoreferencedWarning)
 
 sys.path.append(str(Path(__file__).parent.parent))
 
@@ -17,8 +22,14 @@ from src.utils.geotiff import save_geotiff
 
 
 def upscale_satellite_image_tiled(
-    image_path, model_path, output_path, num_channels=4, scale_factor=4, 
-    tile_size=512, overlap=32, device=None
+    image_path,
+    model_path,
+    output_path,
+    num_channels=4,
+    scale_factor=4,
+    tile_size=512,
+    overlap=32,
+    device=None,
 ):
     """
     Reescala imagen satelital multiespectral usando tiles para manejar imágenes grandes
@@ -59,33 +70,54 @@ def upscale_satellite_image_tiled(
                 f"Imagen tiene menos canales ({c}) que el modelo ({num_channels})"
             )
 
+    # Detectar tipo de archivo para normalización correcta
+    is_png = Path(image_path).suffix.lower() in (".png", ".jpg", ".jpeg")
+
     # Normalizar a [0, 1] si es necesario
     was_normalized = False
     if img.max() > 1.0:
         print("   Normalizando valores...")
-        img = img.astype(np.float32) / 10000.0  # Sentinel-2 L2A
+        if is_png:
+            img = img.astype(np.float32) / 255.0  # PNG/JPG: uint8 (0-255)
+            print("   (Formato PNG: escala 0-255)")
+        else:
+            img = img.astype(np.float32) / 10000.0  # Sentinel-2 L2A (0-10000)
+            print("   (Formato GeoTIFF: escala Sentinel-2)")
         img = np.clip(img, 0, 1)
         was_normalized = True
+
+    # Agregar padding reflejado para evitar artefactos de color en bordes
+    pad_size = 16
+    img = np.pad(
+        img,
+        pad_width=((0, 0), (pad_size, pad_size), (pad_size, pad_size)),
+        mode="reflect",
+    )
+    print(f"   ✅ Padding reflejado agregado: {pad_size}px en cada borde")
+    padded_h, padded_w = img.shape[1], img.shape[2]
 
     # Cargar modelo
     print(f"🧠 Cargando modelo: {model_path}")
     model = ESPCNMultispectral(
         scale_factor=scale_factor, num_channels=num_channels, num_features=64
     )
-    model.load_state_dict(torch.load(model_path, map_location=device))
+    model.load_state_dict(
+        torch.load(model_path, map_location=device, weights_only=True)
+    )
     model.to(device)
     model.eval()
 
-    # Calcular dimensiones de salida
-    sr_h, sr_w = h * scale_factor, w * scale_factor
+    # Calcular dimensiones de salida (con padding)
+    sr_h = padded_h * scale_factor
+    sr_w = padded_w * scale_factor
     sr_img = np.zeros((c, sr_h, sr_w), dtype=np.float32)
-    
-    # Calcular número de tiles
+
+    # Calcular número de tiles (sobre imagen con padding)
     stride = tile_size - overlap
-    n_tiles_h = (h + stride - 1) // stride
-    n_tiles_w = (w + stride - 1) // stride
+    n_tiles_h = (padded_h + stride - 1) // stride
+    n_tiles_w = (padded_w + stride - 1) // stride
     total_tiles = n_tiles_h * n_tiles_w
-    
+
     print(f"🔲 Procesando por tiles: {tile_size}x{tile_size} (overlap={overlap})")
     print(f"   Total de tiles: {total_tiles} ({n_tiles_h}x{n_tiles_w})")
 
@@ -94,69 +126,85 @@ def upscale_satellite_image_tiled(
     for i in range(n_tiles_h):
         for j in range(n_tiles_w):
             tile_count += 1
-            
+
             # Calcular coordenadas del tile
             y_start = i * stride
             x_start = j * stride
-            y_end = min(y_start + tile_size, h)
-            x_end = min(x_start + tile_size, w)
-            
-            # Extraer tile
+            y_end = min(y_start + tile_size, padded_h)
+            x_end = min(x_start + tile_size, padded_w)
+
+            # Extraer tile (de imagen con padding)
             tile = img[:, y_start:y_end, x_start:x_end]
-            
+
             # Convertir a tensor y procesar
             tile_tensor = torch.from_numpy(tile).unsqueeze(0).float().to(device)
-            
+
             with torch.no_grad():
                 sr_tile_tensor = model(tile_tensor)
-            
+
             sr_tile = sr_tile_tensor.squeeze(0).cpu().numpy()
-            
+
             # Calcular coordenadas en imagen SR
             sr_y_start = y_start * scale_factor
             sr_x_start = x_start * scale_factor
             sr_y_end = y_end * scale_factor
             sr_x_end = x_end * scale_factor
-            
+
             # Manejar overlap con blending
             if overlap > 0 and (i > 0 or j > 0):
                 # Aplicar blending en zonas de overlap
                 blend_y = min(overlap * scale_factor, sr_tile.shape[1])
                 blend_x = min(overlap * scale_factor, sr_tile.shape[2])
-                
+
                 # Crear máscaras de blending
                 if i > 0:  # Overlap vertical
                     alpha_y = np.linspace(0, 1, blend_y).reshape(-1, 1)
-                    sr_tile[:, :blend_y, :] = (
-                        sr_tile[:, :blend_y, :] * alpha_y + 
-                        sr_img[:, sr_y_start:sr_y_start+blend_y, sr_x_start:sr_x_end] * (1 - alpha_y)
+                    sr_tile[:, :blend_y, :] = sr_tile[
+                        :, :blend_y, :
+                    ] * alpha_y + sr_img[
+                        :, sr_y_start : sr_y_start + blend_y, sr_x_start:sr_x_end
+                    ] * (
+                        1 - alpha_y
                     )
-                
+
                 if j > 0:  # Overlap horizontal
                     alpha_x = np.linspace(0, 1, blend_x).reshape(1, -1)
-                    sr_tile[:, :, :blend_x] = (
-                        sr_tile[:, :, :blend_x] * alpha_x + 
-                        sr_img[:, sr_y_start:sr_y_end, sr_x_start:sr_x_start+blend_x] * (1 - alpha_x)
+                    sr_tile[:, :, :blend_x] = sr_tile[
+                        :, :, :blend_x
+                    ] * alpha_x + sr_img[
+                        :, sr_y_start:sr_y_end, sr_x_start : sr_x_start + blend_x
+                    ] * (
+                        1 - alpha_x
                     )
-            
+
             # Colocar tile en imagen SR
             sr_img[:, sr_y_start:sr_y_end, sr_x_start:sr_x_end] = sr_tile
-            
+
             # Mostrar progreso
             if tile_count % 10 == 0 or tile_count == total_tiles:
-                print(f"   Progreso: {tile_count}/{total_tiles} tiles ({100*tile_count//total_tiles}%)")
-    
+                print(
+                    f"   Progreso: {tile_count}/{total_tiles} tiles ({100*tile_count//total_tiles}%)"
+                )
+
     print("\n💾 Finalizando procesamiento...")
-    
+
     # Desnormalizar si fue normalizado
     print("   Desnormalizando valores...")
     if was_normalized:
-        sr_img = (sr_img * 10000.0).astype(np.uint16)
+        if is_png:
+            sr_img = (sr_img * 255.0).clip(0, 255).astype(np.uint8)
+        else:
+            sr_img = (sr_img * 10000.0).astype(np.uint16)
     else:
         sr_img = sr_img.astype(np.uint16)
 
+    # Crop el padding en el resultado SR (pad_size * scale_factor)
+    crop = pad_size * scale_factor
+    sr_img = sr_img[:, crop:-crop, crop:-crop]
+    print(f"   ✅ Bordes cropped: {crop}px removidos (padding x{scale_factor})")
+
     sr_c, sr_h, sr_w = sr_img.shape
-    print(f"   ✓ Resultado: {sr_c} canales, {sr_w}x{sr_h}")
+    print(f"   ✓ Resultado final: {sr_c} canales, {sr_w}x{sr_h}")
 
     # Actualizar metadatos para nueva resolución
     metadata.update(
@@ -196,14 +244,21 @@ def upscale_satellite_image(
     # Cargar solo metadatos para verificar tamaño
     with rasterio.open(image_path) as src:
         h, w = src.shape  # shape devuelve (height, width)
-    
+
     # Si la imagen es grande (>2000x2000), usar tiles
     if h > 2000 or w > 2000:
-        print(f"⚠️  Imagen grande detectada ({w}x{h}). Usando procesamiento por tiles...")
+        print(
+            f"⚠️  Imagen grande detectada ({w}x{h}). Usando procesamiento por tiles..."
+        )
         return upscale_satellite_image_tiled(
-            image_path, model_path, output_path, 
-            num_channels, scale_factor, 
-            tile_size=512, overlap=32, device=device
+            image_path,
+            model_path,
+            output_path,
+            num_channels,
+            scale_factor,
+            tile_size=512,
+            overlap=32,
+            device=device,
         )
     else:
         # Para imágenes pequeñas, usar método original (más rápido)
@@ -211,9 +266,14 @@ def upscale_satellite_image(
         # [Aquí iría el código original, pero lo omitimos por brevedad]
         # Por ahora, siempre usamos tiles
         return upscale_satellite_image_tiled(
-            image_path, model_path, output_path,
-            num_channels, scale_factor,
-            tile_size=512, overlap=32, device=device
+            image_path,
+            model_path,
+            output_path,
+            num_channels,
+            scale_factor,
+            tile_size=512,
+            overlap=32,
+            device=device,
         )
 
 
@@ -266,26 +326,37 @@ def batch_upscale_satellite(
     print(f"\n✅ Procesamiento completado. Resultados en: {output_dir}")
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Reescalar imágenes satelitales")
-    parser.add_argument(
-        "--input", type=str, required=True, help="Imagen o directorio de entrada"
-    )
-    parser.add_argument("--model", type=str, required=True, help="Ruta al modelo .pth")
-    parser.add_argument(
-        "--output", type=str, required=True, help="Imagen o directorio de salida"
-    )
-    parser.add_argument(
-        "--channels", type=int, default=4, help="Número de canales (4 para RGB+NIR)"
-    )
-    parser.add_argument(
-        "--scale", type=int, default=4, choices=[2, 4, 8], help="Factor de escalado"
-    )
-    parser.add_argument(
-        "--batch", action="store_true", help="Procesar directorio completo"
-    )
+def main(args=None):
+    """
+    Función main para ser llamada desde main.py o directamente
 
-    args = parser.parse_args()
+    Args:
+        args: Argumentos parseados (opcional, si None se parsean desde consola)
+    """
+    import argparse
+
+    if args is None:
+        parser = argparse.ArgumentParser(description="Reescalar imágenes satelitales")
+        parser.add_argument(
+            "--input", type=str, required=True, help="Imagen o directorio de entrada"
+        )
+        parser.add_argument(
+            "--model", type=str, required=True, help="Ruta al modelo .pth"
+        )
+        parser.add_argument(
+            "--output", type=str, required=True, help="Imagen o directorio de salida"
+        )
+        parser.add_argument(
+            "--channels", type=int, default=4, help="Número de canales (4 para RGB+NIR)"
+        )
+        parser.add_argument(
+            "--scale", type=int, default=4, choices=[2, 4, 8], help="Factor de escalado"
+        )
+        parser.add_argument(
+            "--batch", action="store_true", help="Procesar directorio completo"
+        )
+
+        args = parser.parse_args()
 
     if args.batch:
         batch_upscale_satellite(
@@ -303,3 +374,7 @@ if __name__ == "__main__":
             num_channels=args.channels,
             scale_factor=args.scale,
         )
+
+
+if __name__ == "__main__":
+    main()

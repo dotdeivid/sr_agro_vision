@@ -238,45 +238,53 @@ def download_corrientes_data(
     downloader.download_products(products, max_downloads=max_images)
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Descargar imágenes Sentinel-2 desde Copernicus Data Space Ecosystem"
-    )
-    parser.add_argument(
-        "--region",
-        type=str,
-        default="corrientes_argentina",
-        choices=list(Sentinel2DownloaderCDSE.REGIONS.keys()),
-        help="Región a descargar",
-    )
-    parser.add_argument(
-        "--output",
-        type=str,
-        default="./data/satellite/raw",
-        help="Directorio de salida",
-    )
-    parser.add_argument(
-        "--start-date", type=str, default="2023-09-01", help="Fecha inicio (YYYY-MM-DD)"
-    )
-    parser.add_argument(
-        "--end-date", type=str, default="2024-03-01", help="Fecha fin (YYYY-MM-DD)"
-    )
-    parser.add_argument(
-        "--max-images", type=int, default=10, help="Máximo número de imágenes"
-    )
-    parser.add_argument(
-        "--cloud-max", type=int, default=30, help="Cobertura de nubes máxima (0-100)"
-    )
-    parser.add_argument("--user", type=str, help="Usuario CDSE")
-    parser.add_argument("--password", type=str, help="Contraseña CDSE")
+def main(args=None):
+    """
+    Función main para ser llamada desde main.py o directamente
 
-    args = parser.parse_args()
+    Args:
+        args: Argumentos parseados (opcional, si None se parsean desde consola)
+    """
+    import argparse
 
-    downloader = Sentinel2DownloaderCDSE(
-        username=args.user, password=args.password, output_dir=args.output
-    )
+    if args is None:
+        parser = argparse.ArgumentParser(
+            description="Descargar imágenes Sentinel-2 desde Copernicus CDSE"
+        )
+        parser.add_argument(
+            "--region",
+            type=str,
+            required=True,
+            choices=list(Sentinel2DownloaderCDSE.REGIONS.keys()),
+            help="Región predefinida a descargar",
+        )
+        parser.add_argument(
+            "--output", type=str, default="data/raw", help="Directorio de salida"
+        )
+        parser.add_argument(
+            "--start-date", type=str, default="20230901", help="Fecha inicio (YYYYMMDD)"
+        )
+        parser.add_argument(
+            "--end-date", type=str, default="20240301", help="Fecha fin (YYYYMMDD)"
+        )
+        parser.add_argument(
+            "--cloud-max", type=int, default=20, help="Nubosidad máxima (%)"
+        )
+        parser.add_argument(
+            "--max-images", type=int, default=10, help="Máximo de imágenes a descargar"
+        )
 
+        args = parser.parse_args()
+
+    # Inicializar downloader
+    downloader = Sentinel2DownloaderCDSE(output_dir=args.output)
+
+    # Obtener bbox de región
     bbox = Sentinel2DownloaderCDSE.REGIONS[args.region]["bbox"]
+
+    print(f"\n{'='*60}")
+    print(f"🛰️  SENTINEL-2 DOWNLOAD")
+    print(f"{'='*60}")
     print(f"📍 Región: {Sentinel2DownloaderCDSE.REGIONS[args.region]['description']}")
 
     products = downloader.search_images(
@@ -284,8 +292,12 @@ if __name__ == "__main__":
         start_date=args.start_date,
         end_date=args.end_date,
         cloud_cover_max=args.cloud_max,
-        max_results=args.max_images * 3,  # Buscar más para compensar filtros
+        max_results=args.max_images * 3,
     )
 
     if len(products) > 0:
         downloader.download_products(products, max_downloads=args.max_images)
+
+
+if __name__ == "__main__":
+    main()

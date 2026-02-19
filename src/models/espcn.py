@@ -73,7 +73,7 @@ class ESPCNMultispectral(nn.Module):
         model = ESPCNMultispectral(
             scale_factor=scale_factor, num_channels=num_channels, num_features=64
         )
-        model.load_state_dict(torch.load(path, map_location=device))
+        model.load_state_dict(torch.load(path, map_location=device, weights_only=True))
         model.to(device)
         model.eval()
 

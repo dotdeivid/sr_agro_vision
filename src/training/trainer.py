@@ -16,14 +16,25 @@ sys.path.append(str(Path(__file__).parent.parent))
 from src.models.espcn import ESPCNMultispectral
 from src.data.dataloader import create_satellite_dataloaders
 from src.training.losses import get_loss_function, CombinedLoss
-from src.training.metrics_agriculture import AgricultureMetricsTracker
+from src.training.metrics_agro import AgricultureMetricsTracker
 from src.utils.device import get_device, enable_cudnn_benchmark
 from src.utils.checkpoint import save_checkpoint
 
 
-def train_one_epoch(model, train_loader, criterion, optimizer, device, epoch):
+def train_one_epoch(
+    model,
+    train_loader,
+    criterion,
+    optimizer,
+    device,
+    epoch,
+    dataset_type="multiespectral",
+):
     """
-    Entrena una época con métricas agrícolas
+    Entrena una época con métricas
+
+    Args:
+        dataset_type: Tipo de dataset ('multiespectral' o 'rgb')
 
     Returns:
         dict: Métricas promedio de la época
@@ -33,7 +44,7 @@ def train_one_epoch(model, train_loader, criterion, optimizer, device, epoch):
     from src.training.metrics import AverageMeter
 
     loss_meter = AverageMeter()
-    metrics_tracker = AgricultureMetricsTracker()
+    metrics_tracker = AgricultureMetricsTracker(dataset_type=dataset_type)
 
     pbar = tqdm(train_loader, desc=f"Epoch {epoch}")
 
@@ -43,7 +54,7 @@ def train_one_epoch(model, train_loader, criterion, optimizer, device, epoch):
 
         # Forward pass
         sr_imgs = model(lr_imgs)
-        
+
         # Calculate loss (handle both simple and combined losses)
         loss_output = criterion(sr_imgs, hr_imgs)
         if isinstance(loss_output, tuple):  # CombinedLoss returns (loss, dict)
@@ -84,9 +95,12 @@ def train_one_epoch(model, train_loader, criterion, optimizer, device, epoch):
     return avg_metrics
 
 
-def validate(model, val_loader, criterion, device):
+def validate(model, val_loader, criterion, device, dataset_type="multiespectral"):
     """
-    Validación del modelo con métricas satelitales
+    Validación del modelo con métricas
+
+    Args:
+        dataset_type: Tipo de dataset ('multiespectral' o 'rgb')
 
     Returns:
         dict: Métricas de validación
@@ -96,7 +110,7 @@ def validate(model, val_loader, criterion, device):
     from src.training.metrics import AverageMeter
 
     loss_meter = AverageMeter()
-    metrics_tracker = AgricultureMetricsTracker()
+    metrics_tracker = AgricultureMetricsTracker(dataset_type=dataset_type)
 
     with torch.no_grad():
         for lr_imgs, hr_imgs in tqdm(val_loader, desc="Validating"):
@@ -105,7 +119,13 @@ def validate(model, val_loader, criterion, device):
 
             # Forward pass
             sr_imgs = model(lr_imgs)
-            loss = criterion(sr_imgs, hr_imgs)
+
+            # Handle both simple and combined losses (CombinedLoss returns tuple)
+            loss_output = criterion(sr_imgs, hr_imgs)
+            if isinstance(loss_output, tuple):
+                loss, _ = loss_output
+            else:
+                loss = loss_output
 
             # Calcular métricas
             metrics_tracker.update(sr_imgs, hr_imgs)
@@ -142,7 +162,7 @@ def train_satellite(config_path):
 
     # Crear modelo multiespectral
     print("\n📡 Creando modelo multiespectral...")
-    
+
     if config["model"]["architecture"] == "ESPCNMultispectral":
         model = ESPCNMultispectral(
             scale_factor=config["model"]["scale_factor"],
@@ -151,16 +171,19 @@ def train_satellite(config_path):
         ).to(device)
     elif config["model"]["architecture"] == "SwinIRMultispectral":
         from src.models.swinir import SwinIRMultispectral
+
         model = SwinIRMultispectral(
             num_channels=config["model"]["num_channels"],
             embed_dim=config["model"]["embed_dim"],
             depths=config["model"]["depths"],
             num_heads=config["model"]["num_heads"],
             window_size=config["model"]["window_size"],
-            scale_factor=config["model"]["scale_factor"]
+            scale_factor=config["model"]["scale_factor"],
         ).to(device)
     else:
-        raise ValueError(f"Arquitectura no soportada: {config['model']['architecture']}")
+        raise ValueError(
+            f"Arquitectura no soportada: {config['model']['architecture']}"
+        )
 
     # Contar parámetros
     num_params = sum(p.numel() for p in model.parameters())
@@ -191,13 +214,19 @@ def train_satellite(config_path):
     optimizer = optim.Adam(model.parameters(), lr=config["training"]["learning_rate"])
 
     # Learning rate scheduler
-    if config["training"].get("lr_scheduler") and config["training"]["lr_scheduler"]["type"] == "StepLR":
+    if (
+        config["training"].get("lr_scheduler")
+        and config["training"]["lr_scheduler"]["type"] == "StepLR"
+    ):
         scheduler = optim.lr_scheduler.StepLR(
             optimizer,
             step_size=config["training"]["lr_scheduler"]["step_size"],
             gamma=config["training"]["lr_scheduler"]["gamma"],
         )
-    elif config["training"].get("lr_scheduler") and config["training"]["lr_scheduler"]["type"] == "CosineAnnealingLR":
+    elif (
+        config["training"].get("lr_scheduler")
+        and config["training"]["lr_scheduler"]["type"] == "CosineAnnealingLR"
+    ):
         scheduler = optim.lr_scheduler.CosineAnnealingLR(
             optimizer,
             T_max=config["training"]["lr_scheduler"]["T_max"],
@@ -217,8 +246,16 @@ def train_satellite(config_path):
     checkpoint_dir = Path(config["training"]["checkpoint_dir"])
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
+    # Detectar tipo de dataset
+    dataset_type = config["data"].get("dataset_type", "multiespectral")
+    print(f"\n🌿 Dataset type: {dataset_type.upper()}")
+    if dataset_type == "multiespectral":
+        print("   📡 Métricas agrícolas habilitadas (NDVI, SAM)")
+    else:
+        print("   🖼️  Métricas estándar únicamente (PSNR, SSIM)")
+
     # Entrenar
-    print("\n🚀 Iniciando entrenamiento satelital...\n")
+    print("\n🚀 Iniciando entrenamiento...\n")
 
     best_psnr = 0.0
     best_ndvi_mae = float("inf")
@@ -231,7 +268,13 @@ def train_satellite(config_path):
 
         # Entrenar
         train_metrics = train_one_epoch(
-            model, train_loader, criterion, optimizer, device, epoch + 1
+            model,
+            train_loader,
+            criterion,
+            optimizer,
+            device,
+            epoch + 1,
+            dataset_type=dataset_type,
         )
 
         # Log training
@@ -245,7 +288,9 @@ def train_satellite(config_path):
         # Validar periódicamente
         if (epoch + 1) % config["training"]["validate_every"] == 0:
             print("\n🔍 Validando...")
-            val_metrics = validate(model, val_loader, criterion, device)
+            val_metrics = validate(
+                model, val_loader, criterion, device, dataset_type=dataset_type
+            )
 
             print(f"\n📊 Resultados Validación:")
             print(f"   Loss: {val_metrics['loss']:.4f}")
@@ -287,7 +332,8 @@ def train_satellite(config_path):
             )
 
         # Update learning rate
-        scheduler.step()
+        if scheduler is not None:
+            scheduler.step()
 
     # Guardar modelo final
     final_path = checkpoint_dir / f"final_model_x{config['model']['scale_factor']}.pth"
@@ -304,15 +350,27 @@ def train_satellite(config_path):
     writer.close()
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Entrenar modelo satelital")
-    parser.add_argument(
-        "--config",
-        type=str,
-        required=True,
-        help="Ruta al archivo de configuración YAML",
-    )
+def main(args=None):
+    """
+    Función main para ser llamada desde main.py o directamente
 
-    args = parser.parse_args()
+    Args:
+        args: Argumentos parseados (opcional, si None se parsean desde consola)
+    """
+    if args is None:
+        # Si se llama directamente desde consola, parsear argumentos
+        parser = argparse.ArgumentParser(description="Entrenar modelo satelital")
+        parser.add_argument(
+            "--config",
+            type=str,
+            required=True,
+            help="Ruta al archivo de configuración YAML",
+        )
+        args = parser.parse_args()
 
+    # Ejecutar entrenamiento
     train_satellite(args.config)
+
+
+if __name__ == "__main__":
+    main()

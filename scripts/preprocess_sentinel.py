@@ -207,24 +207,34 @@ def batch_preprocess(input_dir, output_dir, filter_by_clouds=True, cloud_thresho
     print(f"{'='*60}")
 
 
-if __name__ == "__main__":
+def main(args=None):
+    """
+    Función main para ser llamada desde main.py o directamente
+
+    Args:
+        args: Argumentos parseados (opcional, si None se parsean desde consola)
+    """
     import argparse
 
-    parser = argparse.ArgumentParser(description="Preprocesar imágenes Sentinel-2")
-    parser.add_argument(
-        "--input", type=str, required=True, help="Directorio con imágenes .SAFE"
-    )
-    parser.add_argument(
-        "--output", type=str, required=True, help="Directorio de salida"
-    )
-    parser.add_argument(
-        "--cloud-threshold", type=float, default=0.2, help="Umbral de nubosidad (0-1)"
-    )
-    parser.add_argument(
-        "--no-filter-clouds", action="store_true", help="No filtrar por nubes"
-    )
+    if args is None:
+        parser = argparse.ArgumentParser(description="Preprocesar imágenes Sentinel-2")
+        parser.add_argument(
+            "--input", type=str, required=True, help="Directorio con imágenes .SAFE"
+        )
+        parser.add_argument(
+            "--output", type=str, required=True, help="Directorio de salida"
+        )
+        parser.add_argument(
+            "--cloud-threshold",
+            type=float,
+            default=0.2,
+            help="Umbral de nubosidad (0-1)",
+        )
+        parser.add_argument(
+            "--no-filter-clouds", action="store_true", help="No filtrar por nubes"
+        )
 
-    args = parser.parse_args()
+        args = parser.parse_args()
 
     batch_preprocess(
         args.input,
@@ -232,3 +242,7 @@ if __name__ == "__main__":
         filter_by_clouds=not args.no_filter_clouds,
         cloud_threshold=args.cloud_threshold,
     )
+
+
+if __name__ == "__main__":
+    main()

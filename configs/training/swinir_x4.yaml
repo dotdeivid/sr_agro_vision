@@ -9,6 +9,12 @@ model:
   num_heads: [6, 6, 6, 6]
   window_size: 8
 
+data:
+  dataset_type: "multiespectral"
+  num_channels: 4
+  patch_size: 128
+  augmentation: true
+
 training:
   epochs: 200  # SwinIR necesita más epochs
   batch_size: 4  # Menor porque Transformer usa más memoria
@@ -20,13 +26,13 @@ training:
   loss: "CombinedLoss"  # L1 + Perceptual
   
   # Paths
-  train_lr_data: "data/satellite/dataset/train/LR"
-  train_hr_data: "data/satellite/dataset/train/HR"
-  val_lr_data: "data/satellite/dataset/val/LR"
-  val_hr_data: "data/satellite/dataset/val/HR"
+  train_lr_data: "data/datasets/train/LR"
+  train_hr_data: "data/datasets/train/HR"
+  val_lr_data: "data/datasets/val/LR"
+  val_hr_data: "data/datasets/val/HR"
   
-  checkpoint_dir: "weights/satellite_swinir"
-  log_dir: "runs/satellite_swinir"
+  checkpoint_dir: "outputs/weights/swinir_x4"
+  log_dir: "outputs/logs/swinir_x4"
   
   save_every: 10
   validate_every: 5
@@ -37,4 +43,4 @@ data:
   augmentation: true
 
 inference:
-  test_dir: "data/satellite/test"
+  test_dir: "outputs/tests/swinir_x4"

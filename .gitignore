@@ -33,8 +33,7 @@ Thumbs.db
 *.log
 runs/
 
-# Satellite data
-data/satellite/raw/
-data/satellite/preprocessed/
-data/satellite/dataset/
+# Data
+data/datasets/
+outputs/
 
