@@ -335,8 +335,18 @@ def evaluate_batch(sr_dir, hr_dir, output_dir, dataset_type="multiespectral"):
     # Guardar resultados
     import json
 
+    class _NumpyEncoder(json.JSONEncoder):
+        """Convierte numpy scalars a Python float/int para serialización JSON."""
+
+        def default(self, obj):
+            if isinstance(obj, np.floating):
+                return float(obj)
+            if isinstance(obj, np.integer):
+                return int(obj)
+            return super().default(obj)
+
     with open(output_dir / "agricultural_metrics_summary.json", "w") as f:
-        json.dump(summary, f, indent=2)
+        json.dump(summary, f, indent=2, cls=_NumpyEncoder)
 
     print(f"\n✅ Resultados guardados en: {output_dir}")
 

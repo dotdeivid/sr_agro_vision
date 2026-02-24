@@ -26,23 +26,51 @@ class SatelliteSRDataset(Dataset):
         self.num_channels = num_channels
 
         # Listar patches LR
-        self.lr_patches = sorted(list(self.lr_dir.glob("*.npy")))
+        all_lr_patches = sorted(list(self.lr_dir.glob("*.npy")))
 
-        if len(self.lr_patches) == 0:
+        if len(all_lr_patches) == 0:
             raise ValueError(f"No se encontraron patches en {lr_dir}")
 
-        # Verificar que existan HR correspondientes
+        # Filtrar patches incompatibles (canales incorrectos o sin HR par)
+        # mmap_mode='r' lee solo el header del .npy sin cargar el array completo
+        self.lr_patches = []
         self.hr_patches = []
-        for lr_path in self.lr_patches:
+        skipped = 0
+
+        for lr_path in all_lr_patches:
             hr_path = self.hr_dir / lr_path.name
             if not hr_path.exists():
-                raise ValueError(f"Patch HR no encontrado: {hr_path}")
+                skipped += 1
+                continue
+
+            # Verificar canales sin cargar el array completo
+            try:
+                lr_meta = np.load(lr_path, mmap_mode="r")
+                if lr_meta.shape[0] != self.num_channels:
+                    skipped += 1
+                    continue
+            except Exception:
+                skipped += 1
+                continue
+
+            self.lr_patches.append(lr_path)
             self.hr_patches.append(hr_path)
 
-        print(f"✅ Dataset cargado: {len(self.lr_patches)} patches")
+        if len(self.lr_patches) == 0:
+            raise ValueError(
+                f"No hay patches válidos de {self.num_channels} canales en {lr_dir}. "
+                f"({skipped} descartados por canales incorrectos o sin par HR)"
+            )
+
+        print(
+            f"✅ Dataset cargado: {len(self.lr_patches)} patches ({self.num_channels} canales)"
+        )
+        if skipped:
+            print(
+                f"   ⚠️  {skipped} patches descartados (canales incorrectos o sin par)"
+            )
         print(f"   LR dir: {self.lr_dir}")
         print(f"   HR dir: {self.hr_dir}")
-        print(f"   Channels: {self.num_channels}")
 
     def __len__(self):
         return len(self.lr_patches)
@@ -51,12 +79,6 @@ class SatelliteSRDataset(Dataset):
         # Cargar patches
         lr_patch = np.load(self.lr_patches[idx])  # [C, H, W]
         hr_patch = np.load(self.hr_patches[idx])  # [C, H, W]
-
-        # Verificar dimensiones
-        if lr_patch.shape[0] != self.num_channels:
-            raise ValueError(
-                f"Expected {self.num_channels} channels, got {lr_patch.shape[0]}"
-            )
 
         # Data augmentation
         if self.augmentation:
@@ -72,7 +94,7 @@ class SatelliteSRDataset(Dataset):
     def _augment(self, lr, hr):
         """
         Data augmentation mejorado para imágenes satelitales
-        
+
         Transformaciones:
         - Flip horizontal/vertical
         - Rotación 90°
@@ -101,17 +123,17 @@ class SatelliteSRDataset(Dataset):
         if k > 0:
             lr = np.rot90(lr, k, axes=(1, 2)).copy()
             hr = np.rot90(hr, k, axes=(1, 2)).copy()
-        
+
         # Ajuste de brillo (solo canales RGB [0:3], no NIR [3])
         # Simula variaciones en condiciones de iluminación
         if random.random() > 0.5:
             factor = 0.9 + 0.2 * random.random()  # 0.9-1.1
             lr[:3] = np.clip(lr[:3] * factor, 0, 1)
             hr[:3] = np.clip(hr[:3] * factor, 0, 1)
-        
+
         # Ruido gaussiano en LR (simulación de ruido de sensores)
         # Solo en imágenes LR, no en HR (el target debe ser limpio)
-        if random.random() >  0.7:  # p=0.3
+        if random.random() > 0.7:  # p=0.3
             noise = np.random.randn(*lr.shape).astype(np.float32) * 0.01
             lr = np.clip(lr + noise, 0, 1)
 
@@ -164,10 +186,10 @@ def create_satellite_dataloaders(
             num_workers = 0  # MPS tiene problemas con multiprocessing
         else:
             num_workers = 4
-    
+
     # persistent_workers reduce overhead en CUDA
-    use_persistent = (device and device.type == "cuda" and num_workers > 0)
-    use_pin_memory = (device and device.type == "cuda")
+    use_persistent = device and device.type == "cuda" and num_workers > 0
+    use_pin_memory = device and device.type == "cuda"
 
     train_loader = DataLoader(
         train_dataset,

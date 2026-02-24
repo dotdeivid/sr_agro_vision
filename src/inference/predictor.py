@@ -277,53 +277,141 @@ def upscale_satellite_image(
         )
 
 
+def upscale_npy_patch(
+    image_path, model_path, output_path, num_channels=4, scale_factor=4, device=None
+):
+    """
+    Aplica super-resolución a un patch .npy (formato interno del dataset).
+
+    Args:
+        image_path:   Ruta al patch LR .npy [C, H, W]
+        model_path:   Ruta al modelo .pth
+        output_path:  Ruta de salida .npy para el patch SR
+        num_channels: Canales esperados (4 para RGB+NIR)
+        scale_factor: Factor de escalado
+        device:       Dispositivo (auto si None)
+    """
+    import torch
+
+    if device is None:
+        device = get_device()
+
+    lr = np.load(image_path).astype(np.float32)  # [C, H, W]
+
+    if lr.shape[0] != num_channels:
+        print(
+            f"⚠️  Saltando {Path(image_path).name}: {lr.shape[0]} canales ≠ {num_channels}"
+        )
+        return
+
+    model = ESPCNMultispectral(
+        scale_factor=scale_factor, num_channels=num_channels, num_features=64
+    )
+    model.load_state_dict(
+        torch.load(model_path, map_location=device, weights_only=True)
+    )
+    model.to(device)
+    model.eval()
+
+    with torch.no_grad():
+        tensor = torch.from_numpy(lr).unsqueeze(0).float().to(device)
+        sr_tensor = model(tensor)
+        sr = sr_tensor.squeeze(0).cpu().numpy()
+
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+    np.save(output_path, sr)
+
+
 def batch_upscale_satellite(
     input_dir, model_path, output_dir, num_channels=4, scale_factor=4, device=None
 ):
     """
-    Procesa múltiples imágenes satelitales
+    Procesa múltiples imágenes satelitales.
+    Soporta GeoTIFF (.tif/.tiff) y patches numpy (.npy).
 
     Args:
-        input_dir: Directorio con GeoTIFFs de entrada
-        model_path: Ruta al modelo
-        output_dir: Directorio de salida
+        input_dir:    Directorio con imágenes de entrada
+        model_path:   Ruta al modelo
+        output_dir:   Directorio de salida
         num_channels: Canales del modelo
         scale_factor: Factor de escalado
-        device: Dispositivo
+        device:       Dispositivo
     """
+    import torch
+    from tqdm import tqdm
+
     input_dir = Path(input_dir)
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Buscar imágenes
-    image_files = list(input_dir.glob("*.tif"))
-    image_files += list(input_dir.glob("*.tiff"))
+    # Buscar imágenes — soporta .tif y .npy
+    image_files = list(input_dir.glob("*.tif")) + list(input_dir.glob("*.tiff"))
+    npy_files = list(input_dir.glob("*.npy"))
 
-    if len(image_files) == 0:
-        print(f"❌ No se encontraron imágenes en {input_dir}")
-        return
+    if image_files and npy_files:
+        print(f"⚠️  Directorio mixto (.tif + .npy). Usando solo .npy para consistencia.")
+        image_files = []
 
-    print(f"📂 Encontradas {len(image_files)} imágenes")
+    if npy_files:
+        # --- Modo .npy: patches del dataset interno ---
+        print(f"📂 Encontrados {len(npy_files)} patches .npy")
+        print(f"🧠 Cargando modelo: {model_path}")
 
-    for i, img_path in enumerate(image_files, 1):
-        print(f"\n[{i}/{len(image_files)}] Procesando: {img_path.name}")
+        if device is None:
+            device = get_device()
 
-        output_path = output_dir / f"sr_{img_path.name}"
+        model = ESPCNMultispectral(
+            scale_factor=scale_factor, num_channels=num_channels, num_features=64
+        )
+        model.load_state_dict(
+            torch.load(model_path, map_location=device, weights_only=True)
+        )
+        model.to(device)
+        model.eval()
 
-        try:
-            upscale_satellite_image(
-                img_path,
-                model_path,
-                output_path,
-                num_channels=num_channels,
-                scale_factor=scale_factor,
-                device=device,
-            )
-        except Exception as e:
-            print(f"❌ Error procesando {img_path.name}: {e}")
-            continue
+        skipped = 0
+        with torch.no_grad():
+            for lr_path in tqdm(npy_files, desc="Generando SR"):
+                lr = np.load(lr_path).astype(np.float32)
 
-    print(f"\n✅ Procesamiento completado. Resultados en: {output_dir}")
+                if lr.shape[0] != num_channels:
+                    skipped += 1
+                    continue
+
+                tensor = torch.from_numpy(lr).unsqueeze(0).float().to(device)
+                sr_tensor = model(tensor)
+                sr = sr_tensor.squeeze(0).cpu().numpy()
+
+                np.save(output_dir / lr_path.name, sr)
+
+        n_sr = len(list(output_dir.glob("*.npy")))
+        print(f"\n✅ {n_sr} patches SR generados en: {output_dir}")
+        if skipped:
+            print(f"   ⚠️  {skipped} patches saltados (canales incorrectos)")
+
+    elif image_files:
+        # --- Modo .tif: imágenes GeoTIFF completas ---
+        print(f"📂 Encontradas {len(image_files)} imágenes GeoTIFF")
+
+        for i, img_path in enumerate(image_files, 1):
+            print(f"\n[{i}/{len(image_files)}] Procesando: {img_path.name}")
+            output_path = output_dir / f"sr_{img_path.name}"
+            try:
+                upscale_satellite_image(
+                    img_path,
+                    model_path,
+                    output_path,
+                    num_channels=num_channels,
+                    scale_factor=scale_factor,
+                    device=device,
+                )
+            except Exception as e:
+                print(f"❌ Error procesando {img_path.name}: {e}")
+
+        print(f"\n✅ Procesamiento completado. Resultados en: {output_dir}")
+
+    else:
+        print(f"❌ No se encontraron imágenes (.tif, .tiff, .npy) en {input_dir}")
 
 
 def main(args=None):

@@ -277,7 +277,7 @@ def evaluate_on_test_set(
         f"   SSIM: {np.mean(results['model']['ssim']):.4f} ± {np.std(results['model']['ssim']):.4f}"
     )
     print(
-        f"   NDVI MAE: {np.mean(results['model']['ndvi_mae']):.4f} ± {np.std(results['model']['ndvi_mae']):.4f}"
+        f"   NDVI MAE: {np.mean(results['model']['ndvi_mae']):.6f} ± {np.std(results['model']['ndvi_mae']):.6f}"
     )
     print(
         f"   SAM: {np.mean(results['model']['sam']):.2f} ± {np.std(results['model']['sam']):.2f}°"
@@ -291,7 +291,7 @@ def evaluate_on_test_set(
         f"   SSIM: {np.mean(results['bicubic']['ssim']):.4f} ± {np.std(results['bicubic']['ssim']):.4f}"
     )
     print(
-        f"   NDVI MAE: {np.mean(results['bicubic']['ndvi_mae']):.4f} ± {np.std(results['bicubic']['ndvi_mae']):.4f}"
+        f"   NDVI MAE: {np.mean(results['bicubic']['ndvi_mae']):.6f} ± {np.std(results['bicubic']['ndvi_mae']):.6f}"
     )
     print(
         f"   SAM: {np.mean(results['bicubic']['sam']):.2f} ± {np.std(results['bicubic']['sam']):.2f}°"

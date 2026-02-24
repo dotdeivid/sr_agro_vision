@@ -173,7 +173,7 @@ def main(args=None):
     import argparse
 
     if args is None:
-        parser = argparse.ArgumentParser(description="Test Ensemble SR")
+        parser = argparse.ArgumentParser(description="Ensemble SR")
         parser.add_argument(
             "--models", nargs="+", required=True, help="Lista de modelos .pth"
         )
@@ -184,21 +184,55 @@ def main(args=None):
             default=None,
             help="Pesos para cada modelo (opcional)",
         )
-
+        parser.add_argument(
+            "--input", type=str, required=True, help="Imagen o directorio de entrada"
+        )
+        parser.add_argument(
+            "--output", type=str, required=True, help="Imagen o directorio de salida"
+        )
+        parser.add_argument(
+            "--channels", type=int, default=4, help="Número de canales (4=RGB+NIR)"
+        )
+        parser.add_argument(
+            "--scale", type=int, default=4, choices=[2, 4, 8], help="Factor de escalado"
+        )
         args = parser.parse_args()
 
     # Crear ensemble
-    ensemble = EnsembleSR(args.models, weights=args.weights)
+    ensemble = EnsembleSR(
+        args.models,
+        weights=getattr(args, "weights", None),
+        num_channels=getattr(args, "channels", 4),
+        scale_factor=getattr(args, "scale", 4),
+    )
 
-    # Test con imagen aleatoria
-    lr_img = torch.randn(1, 4, 256, 256)
+    input_path = Path(getattr(args, "input", ""))
+    output_path = Path(getattr(args, "output", ""))
 
-    # Predicción ensemble
-    sr_img = ensemble.predict(lr_img)
+    if not input_path.exists():
+        print(f"❌ Input no encontrado: {input_path}")
+        return
 
-    print(f"Input: {lr_img.shape}")
-    print(f"Output: {sr_img.shape}")
-    print("✅ Ensemble funcionando correctamente")
+    # Determinar si es directorio o imagen única
+    if input_path.is_dir():
+        # Batch: procesar todos los .npy
+        output_path.mkdir(parents=True, exist_ok=True)
+        images = list(input_path.glob("*.npy"))
+        print(f"\n🔮 Procesando {len(images)} imágenes con ensemble...")
+        for img_path in images:
+            lr = torch.from_numpy(np.load(img_path)).float()
+            sr = ensemble.predict(lr)
+            out = output_path / img_path.name
+            np.save(out, sr.cpu().numpy())
+        print(f"✅ Ensemble completado → {output_path}")
+    else:
+        # Imagen única .npy
+        lr = torch.from_numpy(np.load(input_path)).float()
+        sr = ensemble.predict(lr)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        np.save(output_path, sr.cpu().numpy())
+        print(f"✅ SR ensemble guardado → {output_path}")
+        print(f"   Input:  {lr.shape}  →  Output: {sr.shape}")
 
 
 if __name__ == "__main__":

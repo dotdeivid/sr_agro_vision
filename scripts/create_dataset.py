@@ -75,7 +75,7 @@ def create_lr_from_hr(hr_image, scale_factor=4, method="bicubic"):
     return lr_image
 
 
-def create_patches(image, patch_size=256, stride=128):
+def create_patches(image, patch_size=256, stride=128, min_patch_size=None):
     """
     Divide imagen en patches para entrenamiento
 
@@ -83,12 +83,20 @@ def create_patches(image, patch_size=256, stride=128):
         image: Array [C, H, W]
         patch_size: Tamaño de patch (debe ser múltiplo del scale_factor)
         stride: Paso entre patches (overlap si stride < patch_size)
+        min_patch_size: Tamaño mínimo aceptable (default: patch_size)
 
     Returns:
         List of patches [C, patch_size, patch_size]
     """
     c, h, w = image.shape
     patches = []
+
+    if min_patch_size is None:
+        min_patch_size = patch_size
+
+    # La imagen es demasiado pequeña para extraer ningún patch
+    if h < min_patch_size or w < min_patch_size:
+        return patches
 
     for i in range(0, h - patch_size + 1, stride):
         for j in range(0, w - patch_size + 1, stride):
@@ -120,28 +128,35 @@ def process_image_to_pairs(
     """
     hr_image_path = Path(hr_image_path)
     output_dir = Path(output_dir)
-    
+
     lr_dir = output_dir / "LR"
     hr_dir = output_dir / "HR"
     lr_dir.mkdir(parents=True, exist_ok=True)
     hr_dir.mkdir(parents=True, exist_ok=True)
 
     # Cargar imagen según el tipo de archivo
-    if hr_image_path.suffix.lower() in ['.png', '.jpg', '.jpeg']:
+    if hr_image_path.suffix.lower() in [".png", ".jpg", ".jpeg"]:
         # Para PNG/JPG (DIV2K y datasets genéricos)
-        hr_pil = Image.open(hr_image_path).convert('RGB')
+        hr_pil = Image.open(hr_image_path).convert("RGB")
         hr_image = np.array(hr_pil).astype(np.float32) / 255.0  # [H, W, C]
         hr_image = hr_image.transpose(2, 0, 1)  # Convertir a [C, H, W]
     else:
         # Para GeoTIFF (Sentinel-2)
         with rasterio.open(hr_image_path) as src:
             hr_image = src.read()  # [C, H, W]
-            metadata = src.meta
 
         # Normalizar si es necesario
         if hr_image.max() > 1.0:
             hr_image = hr_image.astype(np.float32) / 10000.0  # Sentinel-2 L2A
             hr_image = np.clip(hr_image, 0, 1)
+
+    # Verificar que la imagen sea lo suficientemente grande
+    _, h, w = hr_image.shape
+    if h < patch_size or w < patch_size:
+        print(
+            f"⚠️  Imagen muy pequeña ({h}×{w}px < {patch_size}px), saltando: {hr_image_path.name}"
+        )
+        return 0
 
     # Crear versión LR
     lr_image = create_lr_from_hr(hr_image, scale_factor=scale_factor)
@@ -155,9 +170,10 @@ def process_image_to_pairs(
 
     # Extraer patches LR correspondientes
     lr_patch_size = patch_size // scale_factor
-    lr_patches = create_patches(
-        lr_image, patch_size=lr_patch_size, stride=stride // scale_factor
-    )
+    lr_stride = max(
+        1, stride // scale_factor
+    )  # Evitar stride=0 si stride < scale_factor
+    lr_patches = create_patches(lr_image, patch_size=lr_patch_size, stride=lr_stride)
 
     # Asegurar mismo número de patches
     num_patches = min(len(hr_patches), len(lr_patches))
@@ -198,13 +214,13 @@ def batch_create_pairs(
 
     # Buscar imágenes (GeoTIFF, PNG, JPG)
     image_files = list(input_dir.glob("*.tif"))
-    
+
     if len(image_files) == 0:
         image_files = list(input_dir.glob("*.png"))
-    
+
     if len(image_files) == 0:
         image_files = list(input_dir.glob("*.jpg"))
-    
+
     if len(image_files) == 0:
         image_files = list(input_dir.glob("*.jpeg"))
 
@@ -279,6 +295,7 @@ def batch_create_pairs(
 
     # Limpiar directorio temporal
     import shutil
+
     shutil.rmtree(output_dir / "temp")
 
     # Resumen

@@ -18,7 +18,7 @@ from src.data.dataloader import create_satellite_dataloaders
 from src.training.losses import get_loss_function, CombinedLoss
 from src.training.metrics_agro import AgricultureMetricsTracker
 from src.utils.device import get_device, enable_cudnn_benchmark
-from src.utils.checkpoint import save_checkpoint
+from src.utils.checkpoint import save_checkpoint, load_checkpoint
 
 
 def train_one_epoch(
@@ -81,7 +81,7 @@ def train_one_epoch(
         postfix_dict = {
             "loss": f"{loss_meter.avg:.4f}",
             "PSNR": f'{avg_metrics["psnr"]:.2f}',
-            "NDVI_MAE": f'{avg_metrics["ndvi_mae"]:.4f}',
+            "NDVI_MAE": f'{avg_metrics["ndvi_mae"]:.6f}',
         }
         # Add individual loss components if available
         if loss_dict:
@@ -254,12 +254,26 @@ def train_satellite(config_path):
     else:
         print("   🖼️  Métricas estándar únicamente (PSNR, SSIM)")
 
-    # Entrenar
-    print("\n🚀 Iniciando entrenamiento...\n")
-
     best_psnr = 0.0
     best_ndvi_mae = float("inf")
     start_epoch = 0
+
+    # ── Reanudar desde checkpoint ─────────────────────────────────────
+    resume_path = config["training"].get("resume_checkpoint", None)
+
+    if resume_path is None:
+        # Auto-detectar el último checkpoint_epoch_N.pth en el directorio
+        checkpoints = sorted(checkpoint_dir.glob("checkpoint_epoch_*.pth"))
+        if checkpoints:
+            resume_path = str(checkpoints[-1])
+            print(f"\n🔄 Checkpoint detectado automáticamente: {resume_path}")
+
+    if resume_path:
+        start_epoch = load_checkpoint(model, optimizer, resume_path)
+        print(f"   Reanudando desde epoch {start_epoch + 1}")
+    else:
+        print("\n🆕 Entrenamiento desde cero")
+    # ─────────────────────────────────────────────────────────────────
 
     for epoch in range(start_epoch, config["training"]["epochs"]):
         print(f"\n{'='*60}")
@@ -296,7 +310,7 @@ def train_satellite(config_path):
             print(f"   Loss: {val_metrics['loss']:.4f}")
             print(f"   PSNR: {val_metrics['psnr']:.2f} dB")
             print(f"   SSIM: {val_metrics['ssim']:.4f}")
-            print(f"   NDVI MAE: {val_metrics['ndvi_mae']:.4f} ⭐")
+            print(f"   NDVI MAE: {val_metrics['ndvi_mae']:.6f} ⭐")
             print(f"   SAM: {val_metrics['sam']:.2f}°")
 
             # Log validation
@@ -322,7 +336,7 @@ def train_satellite(config_path):
                     checkpoint_dir / f"best_ndvi_x{config['model']['scale_factor']}.pth"
                 )
                 torch.save(model.state_dict(), best_path)
-                print(f"✅ Mejor NDVI MAE guardado: {best_ndvi_mae:.4f}")
+                print(f"✅ Mejor NDVI MAE guardado: {best_ndvi_mae:.6f}")
 
         # Guardar checkpoint periódicamente
         if (epoch + 1) % config["training"]["save_every"] == 0:
@@ -344,7 +358,7 @@ def train_satellite(config_path):
     print(f"{'='*60}")
     print(f"📦 Modelo final: {final_path}")
     print(f"🏆 Mejor PSNR: {best_psnr:.2f} dB")
-    print(f"🌾 Mejor NDVI MAE: {best_ndvi_mae:.4f}")
+    print(f"🌾 Mejor NDVI MAE: {best_ndvi_mae:.6f}")
     print(f"{'='*60}")
 
     writer.close()

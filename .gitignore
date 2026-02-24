@@ -13,7 +13,7 @@ venv/
 *.pt
 
 # Data
-data/datasets/
+data/
 weights/
 results/
 *.png
@@ -36,4 +36,8 @@ runs/
 # Data
 data/datasets/
 outputs/
+
+# Examples
+!example/test_input.png
+!example/test_result.png
 

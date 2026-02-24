@@ -18,20 +18,21 @@ def calculate_ndvi_error(sr_img, hr_img, dataset_type="multiespectral"):
     Calcula error en NDVI (solo para imágenes multiespectrales)
 
     Args:
-        sr_img: [C, H, W] donde C puede ser 3 (RGB) o 4 (RGB+NIR)
-        hr_img: [C, H, W]
+        sr_img: [C, H, W] o [B, C, H, W]
+        hr_img: [C, H, W] o [B, C, H, W]
         dataset_type: Tipo de dataset ('multiespectral' o 'rgb')
 
     Returns:
-        MAE del NDVI (0.0 si es RGB)
+        MAE del NDVI (0.0 si es RGB o menos de 4 canales)
     """
+    # Hacer squeeze del batch ANTES de verificar canales
+    # (shape[0] debe ser C, no B)
+    if sr_img.dim() == 4:
+        sr_img = sr_img[0]
+        hr_img = hr_img[0]
+
     if dataset_type != "multiespectral" or sr_img.shape[0] < 4:
         return 0.0  # No hay NIR, no se puede calcular NDVI
-
-    # Manejar batch
-    if sr_img.dim() == 4:
-        sr_img = sr_img[0]  # Tomar primera imagen del batch
-        hr_img = hr_img[0]
 
     # Convertir a numpy
     if isinstance(sr_img, torch.Tensor):
@@ -39,7 +40,6 @@ def calculate_ndvi_error(sr_img, hr_img, dataset_type="multiespectral"):
     if isinstance(hr_img, torch.Tensor):
         hr_img = hr_img.detach().cpu().numpy()
 
-    # Calcular NDVI solo si hay 4 canales
     # Extraer bandas Red (canal 0) y NIR (canal 3)
     sr_red = sr_img[0]
     sr_nir = sr_img[3]
@@ -203,7 +203,7 @@ if __name__ == "__main__":
     print("Métricas calculadas:")
     print(f"  PSNR: {metrics['psnr']:.2f} dB")
     print(f"  SSIM: {metrics['ssim']:.4f}")
-    print(f"  NDVI MAE: {metrics['ndvi_mae']:.4f}")
+    print(f"  NDVI MAE: {metrics['ndvi_mae']:.6f}")
     print(f"  SAM: {metrics['sam']:.2f}°")
 
     # Test tracker

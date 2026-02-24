@@ -30,48 +30,137 @@ class Sentinel2DownloaderCDSE:
             "bbox": [-0.8, 38.8, 0.2, 39.8],
             "description": "Valencia, España",
         },
+        "pampa_humeda_argentina": {
+            "bbox": [-63.0, -34.5, -59.0, -32.0],
+            "description": "Pampa Húmeda - Soja/Trigo/Maíz",
+        },
+        "mendoza_vinedos": {
+            "bbox": [-69.5, -34.0, -68.0, -32.5],
+            "description": "Mendoza - Viñedos y frutales",
+        },
+        "mendoza_vinedos": {
+            "bbox": [-69.5, -34.0, -68.0, -32.5],
+            "description": "Mendoza - Viñedos y frutales",
+        },
+        "mato_grosso_soja": {
+            "bbox": [-56.0, -13.5, -53.0, -11.5],
+            "description": "Mato Grosso - Soja intensiva",
+        },
+        "sao_paulo_cana": {
+            "bbox": [-49.0, -22.5, -47.0, -21.0],
+            "description": "São Paulo - Caña de azúcar",
+        },
+        "valle_central_chile": {
+            "bbox": [-71.5, -35.5, -70.0, -33.5],
+            "description": "Valle Central Chile - Frutales",
+        },
+        "ica_peru": {
+            "bbox": [-76.0, -14.5, -74.5, -13.0],
+            "description": "Ica, Perú - Espárragos y uvas, desierto costero",
+        },
+        "llanos_colombia": {
+            "bbox": [-73.5, 4.0, -71.0, 6.0],
+            "description": "Llanos Orientales Colombia - Arroz/Palma",
+        },
     }
 
     def __init__(self, username=None, password=None, output_dir="./downloads"):
         """
         Args:
-            username: Usuario CDSE (opcional si está en .env como CDSE_CLIENT_ID)
-            password: Contraseña CDSE (opcional si está en .env como CDSE_CLIENT_SECRET)
+            username: Email CDSE (opcional, lee de COPERNICUS_USER en .env)
+            password: Contraseña CDSE (opcional, lee de COPERNICUS_PASS en .env)
             output_dir: Directorio de descarga
         """
-        # cdse-client usa CDSE_CLIENT_ID y CDSE_CLIENT_SECRET
-        # Mantener compatibilidad con COPERNICUS_USER y COPERNICUS_PASS
-        self.client_id = (
-            username or os.getenv("CDSE_CLIENT_ID") or os.getenv("COPERNICUS_USER")
+        # Credenciales de usuario CDSE (email + password) — para descarga via OData
+        self.username = (
+            username or os.getenv("COPERNICUS_USER") or os.getenv("CDSE_USER")
         )
-        self.client_secret = (
-            password or os.getenv("CDSE_CLIENT_SECRET") or os.getenv("COPERNICUS_PASS")
+        self.password = (
+            password or os.getenv("COPERNICUS_PASS") or os.getenv("CDSE_PASS")
         )
 
-        if not self.client_id or not self.client_secret:
-            raise ValueError(
-                "❌ Credenciales no encontradas.\n\n"
-                "Opciones:\n"
-                "1. Crear archivo .env en la raíz del proyecto:\n"
-                "   CDSE_CLIENT_ID=tu_usuario\n"
-                "   CDSE_CLIENT_SECRET=tu_contraseña\n"
-                "   (o usar COPERNICUS_USER/COPERNICUS_PASS)\n\n"
-                "2. Pasar como argumentos:\n"
-                "   --user tu_usuario --password tu_contraseña\n\n"
-                "📝 Regístrate en:\n"
-                "   https://dataspace.copernicus.eu/\n"
-                "   (NOTA: Nuevo sistema, necesitas nueva cuenta)"
-            )
+        # OAuth client (sh-xxx) — para búsqueda via cdse-client/STAC
+        self.client_id = os.getenv("CDSE_CLIENT_ID")
+        self.client_secret = os.getenv("CDSE_CLIENT_SECRET")
 
-        # Configurar variables de entorno para cdse-client
-        os.environ["CDSE_CLIENT_ID"] = self.client_id
-        os.environ["CDSE_CLIENT_SECRET"] = self.client_secret
+        # cdse-client necesita estas vars para la búsqueda STAC
+        if self.client_id:
+            os.environ["CDSE_CLIENT_ID"] = self.client_id
+        if self.client_secret:
+            os.environ["CDSE_CLIENT_SECRET"] = self.client_secret
 
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        print(f"✅ Credenciales cargadas: {self.client_id}")
-        print(f"📁 Directorio de salida: {self.output_dir}")
+    def _get_oauth_token(self):
+        """
+        Obtiene token OAuth para OData/descarga usando grant_type=password.
+
+        IMPORTANTE: El endpoint zipper de CDSE requiere un token obtenido con
+        usuario+contraseña (grant_type=password, client_id=cdse-public),
+        NO con client_credentials (esos son para Sentinel Hub API solamente).
+
+        Ver doc oficial:
+        https://documentation.dataspace.copernicus.eu/APIs/OData.html#product-download
+        """
+        import requests
+
+        if not self.username or not self.password:
+            raise RuntimeError(
+                "❌ Credenciales de usuario requeridas para descarga.\n"
+                "   Agrega al .env:\n"
+                "   COPERNICUS_USER=tu_email@ejemplo.com\n"
+                "   COPERNICUS_PASS=tu_contraseña"
+            )
+
+        token_url = (
+            "https://identity.dataspace.copernicus.eu"
+            "/auth/realms/CDSE/protocol/openid-connect/token"
+        )
+        data = {
+            "grant_type": "password",  # requerido por OData/zipper
+            "client_id": "cdse-public",  # client_id público fijo de CDSE
+            "username": self.username,
+            "password": self.password,
+        }
+        try:
+            resp = requests.post(token_url, data=data, timeout=30)
+            resp.raise_for_status()
+            token = resp.json()["access_token"]
+            print(f"   ✅ Token OAuth (password grant) obtenido")
+            return token
+        except Exception as e:
+            raise RuntimeError(
+                f"❌ No se pudo obtener token: {e}\n"
+                "   Verifica COPERNICUS_USER y COPERNICUS_PASS en .env"
+            )
+
+    def _get_product_uuid(self, product_name, requests_module):
+        """
+        Consulta el catálogo OData de CDSE para obtener el UUID real del producto.
+        El zipper endpoint necesita el UUID, no el nombre .SAFE.
+
+        Args:
+            product_name: Nombre del producto (ej: S2A_MSIL2A_....SAFE)
+            requests_module: módulo requests ya importado
+
+        Returns:
+            str: UUID del producto o None si no se encontró
+        """
+        odata_url = (
+            "https://catalogue.dataspace.copernicus.eu/odata/v1/Products"
+            f"?$filter=Name eq '{product_name}'&$select=Id,Name"
+        )
+        try:
+            resp = requests_module.get(odata_url, timeout=20)
+            resp.raise_for_status()
+            items = resp.json().get("value", [])
+            if items:
+                return items[0]["Id"]
+            return None
+        except Exception as e:
+            print(f"   ⚠️  No se pudo obtener UUID vía OData: {e}")
+            return None
 
     def search_images(
         self, bbox, start_date, end_date, cloud_cover_max=30, max_results=100
@@ -101,6 +190,16 @@ class Sentinel2DownloaderCDSE:
         print(f"   Región: {bbox}")
         print(f"   Fechas: {start_date} a {end_date}")
         print(f"   Nubes máx: {cloud_cover_max}%")
+
+        # Convertir formato YYYYMMDD → YYYY-MM-DD si es necesario (CDSE exige ISO 8601)
+        def to_iso(date_str):
+            date_str = str(date_str).strip()
+            if len(date_str) == 8 and "-" not in date_str:
+                return f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]}"
+            return date_str
+
+        start_date = to_iso(start_date)
+        end_date = to_iso(end_date)
 
         # Crear cliente usando credenciales de env vars
         client = CDSEClient(output_dir=str(self.output_dir))
@@ -161,16 +260,24 @@ class Sentinel2DownloaderCDSE:
         print(f"   Destino: {self.output_dir}")
         print(f"   Esto puede tardar varias horas...\n")
 
-        # Crear cliente
-        client = CDSEClient(output_dir=str(self.output_dir))
+        # Obtener token OAuth una vez para toda la sesión de descarga
+        import requests
+        import tqdm
+
+        token = self._get_oauth_token()
+        headers = {"Authorization": f"Bearer {token}"}
+        # Zipper endpoint DIRECTO (no usar catalogue que redirige y Python requests
+        # pierde el header Authorization en redirect cross-domain)
+        # Fix.md ref: https://documentation.dataspace.copernicus.eu/APIs/OData.html
+        download_url = "https://zipper.dataspace.copernicus.eu/odata/v1/Products({})"
 
         successful = 0
         failed = 0
 
         for idx, product in enumerate(products, 1):
-            # Acceder a propiedades del objeto STAC Item
             props = product.properties if hasattr(product, "properties") else {}
             title = props.get("title", getattr(product, "id", f"product_{idx}"))
+            product_id = getattr(product, "id", None)
             date = props.get("datetime", "N/A")
             cloud = props.get("cloudCover", props.get("eo:cloud_cover", "N/A"))
 
@@ -178,16 +285,41 @@ class Sentinel2DownloaderCDSE:
             print(f"   Fecha: {date}")
             print(f"   Nubes: {cloud}%")
 
-            try:
-                # Descargar producto
-                result = client.download(product)
+            if not product_id:
+                print(f"   ⚠️  Sin ID, no se puede descargar")
+                failed += 1
+                continue
 
-                if result:
-                    print(f"   ✅ Descargado")
-                    successful += 1
-                else:
-                    print(f"   ⚠️  No se pudo descargar")
+            try:
+                # El product.id puede ser el nombre .SAFE, no el UUID.
+                # Consultamos OData para obtener el UUID real.
+                print(f"   🔍 Buscando UUID en catálogo...")
+                uuid = self._get_product_uuid(product_id, requests)
+                if not uuid:
+                    # Intentar también con el título
+                    uuid = self._get_product_uuid(title, requests)
+                if not uuid:
+                    print(f"   ❌ No se pudo encontrar UUID para el producto")
                     failed += 1
+                    continue
+                print(f"   UUID: {uuid}")
+
+                # Descarga directa al zipper endpoint con token OAuth
+                url = download_url.format(uuid) + "/$value"
+                dest = self.output_dir / f"{title}.zip"
+
+                with requests.get(url, headers=headers, stream=True, timeout=60) as r:
+                    r.raise_for_status()
+                    total = int(r.headers.get("content-length", 0))
+                    with open(dest, "wb") as f, tqdm.tqdm(
+                        total=total, unit="B", unit_scale=True, desc=f"   {title[:40]}"
+                    ) as bar:
+                        for chunk in r.iter_content(chunk_size=65536):
+                            f.write(chunk)
+                            bar.update(len(chunk))
+
+                print(f"   ✅ Descargado: {dest.name}")
+                successful += 1
 
             except Exception as e:
                 print(f"   ❌ Error: {e}")
@@ -201,41 +333,6 @@ class Sentinel2DownloaderCDSE:
         print(f"Fallidas: {failed}")
         print(f"Ubicación: {self.output_dir}")
         print(f"{'='*60}")
-
-
-def download_corrientes_data(
-    output_dir="./data/satellite/raw",
-    start_date="2023-09-01",
-    end_date="2024-03-01",
-    max_images=10,
-):
-    """
-    Función helper para descargar imágenes de Corrientes
-
-    Args:
-        output_dir: Directorio de salida
-        start_date: Fecha inicio (YYYY-MM-DD)
-        end_date: Fecha fin (YYYY-MM-DD)
-        max_images: Máximo a descargar
-    """
-    print("🌾 Descargando imágenes de Corrientes, Argentina")
-    print("=" * 60)
-
-    downloader = Sentinel2DownloaderCDSE(output_dir=output_dir)
-
-    bbox = Sentinel2DownloaderCDSE.REGIONS["corrientes_argentina"]["bbox"]
-
-    products = downloader.search_images(
-        bbox=bbox,
-        start_date=start_date,
-        end_date=end_date,
-        cloud_cover_max=30,  # Corrientes tiene mucha nubosidad
-    )
-
-    if len(products) == 0:
-        return
-
-    downloader.download_products(products, max_downloads=max_images)
 
 
 def main(args=None):

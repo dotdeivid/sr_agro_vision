@@ -99,4 +99,4 @@ evaluation:
   batch_size: 10
   visualize_all: false  # Set to true to save all visualizations
   save_intermediate: true
-  dataset_type: "rgb"  # "multiespectral" or "rgb"
+  dataset_type: "multiespectral"  # "multiespectral" or "rgb"
