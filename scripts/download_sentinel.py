@@ -19,44 +19,48 @@ class Sentinel2DownloaderCDSE:
     # Regiones predefinidas
     REGIONS = {
         "corrientes_argentina": {
-            "bbox": [-59.5, -29.5, -55.5, -27.0],
-            "description": "Corrientes, Argentina - Zona arrocera",
+            # Núcleo arrocero: departamentos Mercedes y Curuzú Cuatiá (INTA, FAUBA)
+            "bbox": [-58.5, -30.0, -56.5, -28.0],
+            "description": "Corrientes, Argentina - Zona arrocera (Mercedes / Curuzú Cuatiá)",
         },
         "rio_grande_agriculture": {
-            "bbox": [-53.5, -30.5, -52.0, -29.0],  # Interior agrícola
-            "description": "Rio Grande do Sul - Zona agrícola interior",
+            # Passo Fundo / Erechim — principal región sojera y triguera del estado
+            "bbox": [-53.5, -29.0, -52.0, -27.5],
+            "description": "Rio Grande do Sul - Passo Fundo, zona soja/trigo",
         },
         "valencia_spain": {
-            "bbox": [-0.8, 38.8, 0.2, 39.8],
-            "description": "Valencia, España",
+            # Parque Natural Albufera + L'Horta (arrozales y huerta al sur de Valencia)
+            "bbox": [-0.5, 39.1, 0.1, 39.5],
+            "description": "Valencia, España - Arrozales Albufera y Huerta",
         },
         "pampa_humeda_argentina": {
-            "bbox": [-63.0, -34.5, -59.0, -32.0],
-            "description": "Pampa Húmeda - Soja/Trigo/Maíz",
+            # Triángulo núcleo sojero: Pergamino-Junín-Rosario (norte Bs.As + sur Santa Fe)
+            "bbox": [-62.0, -34.5, -59.5, -32.0],
+            "description": "Pampa Húmeda - Núcleo sojero (Pergamino / Rosario)",
         },
         "mendoza_vinedos": {
-            "bbox": [-69.5, -34.0, -68.0, -32.5],
-            "description": "Mendoza - Viñedos y frutales",
-        },
-        "mendoza_vinedos": {
-            "bbox": [-69.5, -34.0, -68.0, -32.5],
-            "description": "Mendoza - Viñedos y frutales",
+            # Luján de Cuyo + Maipú — corazón vitivinícola de Mendoza
+            "bbox": [-69.3, -33.5, -68.5, -32.9],
+            "description": "Mendoza - Viñedos Luján de Cuyo y Maipú",
         },
         "mato_grosso_soja": {
-            "bbox": [-56.0, -13.5, -53.0, -11.5],
-            "description": "Mato Grosso - Soja intensiva",
+            "bbox": [-58.0, -14.0, -54.0, -11.0],
+            "description": "Mato Grosso - Soja intensiva (corazón del Cerrado)",
         },
         "sao_paulo_cana": {
-            "bbox": [-49.0, -22.5, -47.0, -21.0],
-            "description": "São Paulo - Caña de azúcar",
+            # Piracicaba (22.73°S/47.65°W) + Ribeirão Preto (21.18°S/47.81°W)
+            "bbox": [-49.0, -22.8, -47.0, -20.8],
+            "description": "São Paulo - Caña de azúcar (Piracicaba / Ribeirão Preto)",
         },
         "valle_central_chile": {
-            "bbox": [-71.5, -35.5, -70.0, -33.5],
-            "description": "Valle Central Chile - Frutales",
+            # Curicó (-34.98°S) + Talca (-35.43°S): viñedos, frutales, cereales
+            "bbox": [-71.8, -36.0, -70.5, -34.5],
+            "description": "Valle Central Chile - Viñedos y frutales (Curicó / Talca)",
         },
         "ica_peru": {
-            "bbox": [-76.0, -14.5, -74.5, -13.0],
-            "description": "Ica, Perú - Espárragos y uvas, desierto costero",
+            # Franja costera irrigada: espárragos y uva de mesa (city -14.07°S/-75.73°W)
+            "bbox": [-76.0, -14.5, -75.0, -13.5],
+            "description": "Ica, Perú - Espárragos y uvas (desierto costero irrigado)",
         },
         "llanos_colombia": {
             "bbox": [-73.5, 4.0, -71.0, 6.0],
