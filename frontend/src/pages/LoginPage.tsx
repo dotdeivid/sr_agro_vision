@@ -23,16 +23,24 @@ export const LoginPage: React.FC = () => {
             setError('');
 
             const authResponse = await authApi.login(data);
+
+            // Save token to localStorage BEFORE calling getMe(),
+            // so the axios interceptor can include it in the Authorization header.
+            localStorage.setItem('access_token', authResponse.access_token);
+
             const user = await authApi.getMe();
 
             setAuth(user, authResponse.access_token);
             navigate('/dashboard');
         } catch (err: any) {
+            // If anything fails after the token was stored, clean it up.
+            localStorage.removeItem('access_token');
             setError(err.response?.data?.detail || 'Error al iniciar sesión');
         } finally {
             setLoading(false);
         }
     };
+
 
     return (
         <div className={styles.container}>

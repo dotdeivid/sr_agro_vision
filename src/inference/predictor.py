@@ -30,6 +30,7 @@ def upscale_satellite_image_tiled(
     tile_size=512,
     overlap=32,
     device=None,
+    num_features=64,
 ):
     """
     Reescala imagen satelital multiespectral usando tiles para manejar imágenes grandes
@@ -99,7 +100,7 @@ def upscale_satellite_image_tiled(
     # Cargar modelo
     print(f"🧠 Cargando modelo: {model_path}")
     model = ESPCNMultispectral(
-        scale_factor=scale_factor, num_channels=num_channels, num_features=64
+        scale_factor=scale_factor, num_channels=num_channels, num_features=num_features
     )
     model.load_state_dict(
         torch.load(model_path, map_location=device, weights_only=True)
@@ -236,7 +237,13 @@ def upscale_satellite_image_tiled(
 
 
 def upscale_satellite_image(
-    image_path, model_path, output_path, num_channels=4, scale_factor=4, device=None
+    image_path,
+    model_path,
+    output_path,
+    num_channels=4,
+    scale_factor=4,
+    device=None,
+    num_features=64,
 ):
     """
     Wrapper que decide si usar procesamiento normal o por tiles
@@ -259,6 +266,7 @@ def upscale_satellite_image(
             tile_size=512,
             overlap=32,
             device=device,
+            num_features=num_features,
         )
     else:
         # Para imágenes pequeñas, usar método original (más rápido)
@@ -274,6 +282,7 @@ def upscale_satellite_image(
             tile_size=512,
             overlap=32,
             device=device,
+            num_features=num_features,
         )
 
 
@@ -466,3 +475,121 @@ def main(args=None):
 
 if __name__ == "__main__":
     main()
+
+
+# =============================================================================
+# SRPredictor — OOP wrapper required by app/tasks/processing_tasks.py
+# =============================================================================
+
+
+class SRPredictor:
+    """
+    High-level interface around the upscale_satellite_image pipeline.
+
+    Expected by Celery task run_sr_inference:
+        predictor = SRPredictor(model_name="espcn", scale_factor=4, device=device)
+        metrics   = predictor.predict(input_path=..., output_path=...,
+                                      calculate_metrics=True,
+                                      progress_callback=callback)
+
+    Model resolution
+    ----------------
+    Weights are looked up in:
+        <project_root>/models/<model_name>_x<scale_factor>.pth
+
+    where <project_root> is four directories above this file:
+        src/inference/predictor.py  →  ../../../../  =  sr_agro_vision/
+
+    Example:  sr_agro_vision/models/espcn_x4.pth
+    """
+
+    # Supported model names and their corresponding classes
+    _MODEL_MAP = {
+        "espcn": "ESPCNMultispectral",
+        "swinir": "SwinIR",  # future
+        "gan": "ESPCNGAN",  # future
+    }
+
+    def __init__(
+        self,
+        model_name: str = "espcn",
+        scale_factor: int = 4,
+        device=None,
+        num_channels: int = None,  # None = auto-detect from checkpoint
+    ):
+        self.model_name = model_name.lower()
+        self.scale_factor = scale_factor
+        self.device = device or get_device()
+
+        # Resolve model weights path
+        project_root = Path(__file__).resolve().parent.parent.parent
+        self.model_path = (
+            project_root / "models" / f"{self.model_name}_x{scale_factor}.pth"
+        )
+
+        if not self.model_path.exists():
+            raise FileNotFoundError(
+                f"Model weights not found: {self.model_path}\n"
+                f"Place the trained .pth file at that path before running inference."
+            )
+
+        # ----------------------------------------------------------------
+        # Auto-detect architecture from the checkpoint itself.
+        # conv1.weight shape: [num_features, num_channels, kH, kW]
+        # This avoids hard-coding values that differ between checkpoints.
+        # ----------------------------------------------------------------
+        checkpoint = torch.load(
+            str(self.model_path), map_location="cpu", weights_only=True
+        )
+        detected_features = int(checkpoint["conv1.weight"].shape[0])
+        detected_channels = int(checkpoint["conv1.weight"].shape[1])
+
+        self.num_channels = (
+            num_channels if num_channels is not None else detected_channels
+        )
+        self.num_features = detected_features
+
+        import warnings as _warnings
+
+        if num_channels is not None and num_channels != detected_channels:
+            _warnings.warn(
+                f"Requested num_channels={num_channels} but checkpoint was saved "
+                f"with {detected_channels} channels. Using {detected_channels}.",
+                UserWarning,
+            )
+            self.num_channels = detected_channels
+
+    def predict(
+        self,
+        input_path: str,
+        output_path: str,
+        calculate_metrics: bool = False,
+        progress_callback=None,
+    ) -> dict:
+        """
+        Run super-resolution on a GeoTIFF file.
+
+        Args:
+            input_path:        Path to the input GeoTIFF (.tif/.tiff)
+            output_path:       Path where the SR result will be saved
+            calculate_metrics: Reserved — no reference image available at
+                               inference time, so PSNR/SSIM are always None.
+            progress_callback: Optional callable(current, total) for progress.
+
+        Returns:
+            dict with optional metrics keys (psnr, ssim) — both None unless
+            a reference HR image is provided (not supported yet).
+        """
+        upscale_satellite_image(
+            image_path=input_path,
+            model_path=str(self.model_path),
+            output_path=output_path,
+            num_channels=self.num_channels,
+            scale_factor=self.scale_factor,
+            device=self.device,
+            num_features=self.num_features,
+        )
+
+        # PSNR / SSIM require a ground-truth HR image which we don't have
+        # during inference on real satellite data.
+        return {"psnr": None, "ssim": None}

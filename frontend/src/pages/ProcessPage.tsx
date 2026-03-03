@@ -227,7 +227,17 @@ export const ProcessPage: React.FC = () => {
                 <div className={styles.failedCard}>
                     <h3>❌ Procesamiento Fallido</h3>
                     <p>{error || 'Ha ocurrido un error desconocido'}</p>
-                    <Button onClick={() => window.location.reload()} variant="secondary">
+                    <Button
+                        onClick={() => {
+                            setTaskId(null);
+                            setStatus(null);
+                            setProgress(0);
+                            setError('');
+                            setResult(null);
+                            setResultId(null);
+                        }}
+                        variant="secondary"
+                    >
                         Intentar de Nuevo
                     </Button>
                 </div>

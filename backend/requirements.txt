@@ -4,22 +4,29 @@ uvicorn[standard]==0.24.0
 python-multipart==0.0.6
 
 # Database
-sqlalchemy==2.0.23
-alembic==1.12.1
+# sqlalchemy 2.0.36+ is required for Python 3.13 — earlier versions fail with an
+# AssertionError on __firstlineno__ / __static_attributes__ (new auto-attrs in Py 3.13).
+sqlalchemy>=2.0.36
+alembic>=1.13.3
 
 # Autenticación
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
-bcrypt==4.1.1
+# bcrypt 4.x removed __about__, which passlib 1.7.4 reads at startup causing a
+# "(trapped) AttributeError: module 'bcrypt' has no attribute '__about__'" warning.
+# bcrypt 3.x retains __about__ and is fully compatible with passlib 1.7.4.
+bcrypt==3.2.2
+
 
 # Validación
-pydantic==2.5.0
-pydantic-settings==2.1.0
+pydantic==2.9.0
+pydantic-settings==2.5.2
 email-validator==2.1.0
 
 # Utilidades
 python-dotenv==1.0.0
 aiofiles==23.2.1
+setuptools>=69.0  # Required by rasterio build system on Python 3.12+
 
 # Task Queue
 celery==5.3.4
@@ -30,11 +37,29 @@ sentinelsat==1.2.1
 requests-oauthlib==1.3.1
 
 # GIS y análisis
-rasterio==1.3.9
-numpy==1.24.3
-matplotlib==3.8.0
-scipy==1.11.3
+# rasterio 1.3.9 fails on Python 3.13 (missing pkg_resources).
+# 1.4.x ships binary wheels for Python 3.13 and doesn't require building from source.
+# GDAL pip wheel is extremely fragile on macOS — install via conda or brew instead:
+#   conda install -c conda-forge rasterio gdal
+# If you must use pip, install the conda binary wheel via:
+#   pip install rasterio GDAL (they come from the conda env already)
+rasterio>=1.4.0
+numpy>=1.26.0
+matplotlib>=3.8.0
+scipy>=1.11.3
 
 # Export y conversión
-GDAL==3.7.2
-Pillow==10.1.0
+# GDAL: Do NOT install via pip on macOS — use conda-forge or brew.
+# The pip wheel for GDAL requires the system GDAL C library at exactly the same version.
+# If already installed via conda, remove this line. If you need it:
+#   conda install -c conda-forge gdal
+GDAL>=3.11.4 
+Pillow>=10.1.0
+
+# Deep Learning — Super-Resolution inference
+# The default PyPI index installs:
+#   - macOS Apple Silicon (M1/M2/M3): CPU + MPS acceleration (built-in)
+#   - macOS Intel / Windows CPU:      CPU only
+# For NVIDIA GPU (Windows/Linux), install the CUDA wheel instead:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu121
+torch>=2.0.0

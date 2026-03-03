@@ -21,8 +21,8 @@ export interface TaskStatusResponse {
     progress: number;
     result_id: string | null;
     error: string | null;
-    created_at: string;
-    updated_at: string;
+    // Note: created_at / updated_at are NOT returned by the backend InferenceStatus
+    // schema — they were removed to avoid undefined values.
 }
 
 export interface InferenceResult {

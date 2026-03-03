@@ -1,42 +1,66 @@
+from pathlib import Path
+from pydantic import Field
 from pydantic_settings import BaseSettings
-from typing import List
+from typing import List, Optional
+
 
 class Settings(BaseSettings):
+    # -------------------------------------------------------------------------
+    # Metadatos de la aplicación — constantes, no cambian entre entornos
+    # -------------------------------------------------------------------------
     PROJECT_NAME: str = "SR Agro Vision API"
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
-    
-    # Database
-    DATABASE_URL: str = "sqlite:///./sr_agro.db"
-    
-    # Security
-    SECRET_KEY: str = "your-secret-key-change-in-production"
+
+    # -------------------------------------------------------------------------
+    # Logging — opcional, por defecto INFO
+    # -------------------------------------------------------------------------
+    LOG_LEVEL: str = "INFO"
+
+    # -------------------------------------------------------------------------
+    # JWT — el algoritmo es fijo; el resto viene del .env
+    # -------------------------------------------------------------------------
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    
-    # CORS
+    SECRET_KEY: str = Field(min_length=1)
+    ACCESS_TOKEN_EXPIRE_MINUTES: int
+
+    # -------------------------------------------------------------------------
+    # CORS — permite ajustes por entorno sin tocar código
+    # -------------------------------------------------------------------------
     BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173"]
-    
-    # Uploads
-    UPLOAD_DIR: str = "backend/uploads"
-    MAX_UPLOAD_SIZE: int = 524288000  # 500 MB
-    
-    # Celery / Redis
-    REDIS_URL: str = "redis://localhost:6379/0"
-    CELERY_BROKER_URL: str = "redis://localhost:6379/0"
-    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
-    
-    # SR Processing
-    SR_OUTPUT_DIR: str = "backend/uploads/results"
-    
+
+    # -------------------------------------------------------------------------
+    # Base de datos — obligatorio en .env
+    # -------------------------------------------------------------------------
+    DATABASE_URL: str
+
+    # -------------------------------------------------------------------------
+    # Almacenamiento — obligatorio en .env
+    # -------------------------------------------------------------------------
+    UPLOAD_DIR: str
+    MAX_UPLOAD_SIZE: int
+    SR_OUTPUT_DIR: str
+
+    # -------------------------------------------------------------------------
+    # Celery / Redis — obligatorio en .env
+    # -------------------------------------------------------------------------
+    REDIS_URL: str
+    CELERY_BROKER_URL: str
+    CELERY_RESULT_BACKEND: str
+
+    # -------------------------------------------------------------------------
     # Copernicus API
-    COPERNICUS_CLIENT_ID: str = ""
-    COPERNICUS_CLIENT_SECRET: str = ""
-    COPERNICUS_API_URL: str = "https://catalogue.dataspace.copernicus.eu/resto/api"
-    COPERNICUS_DOWNLOAD_URL: str = "https://zipper.dataspace.copernicus.eu/odata/v1"
-    
+    # URLs son constantes de la API pública — no deben cambiarse
+    # Credenciales son opcionales
+    # -------------------------------------------------------------------------
+    COPERNICUS_API_URL: str = "https://catalogue.dataspace.copernicus.eu/odata/v1"
+    COPERNICUS_DOWNLOAD_URL: str = "https://catalogue.dataspace.copernicus.eu/odata/v1"
+    COPERNICUS_USER: Optional[str] = None
+    COPERNICUS_PASS: Optional[str] = None
+
     class Config:
-        env_file = "backend/.env"
+        env_file = str(Path(__file__).resolve().parent.parent.parent / ".env")
         case_sensitive = True
+
 
 settings = Settings()

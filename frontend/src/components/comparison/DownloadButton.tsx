@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Button } from '../common/Button';
+import { apiClient } from '../../api/client';
 import styles from './DownloadButton.module.css';
 
 interface DownloadButtonProps {
@@ -12,22 +13,33 @@ export const DownloadButton: React.FC<DownloadButtonProps> = ({
     filename
 }) => {
     const [downloading, setDownloading] = useState(false);
+    const [error, setError] = useState<string>('');
 
     const handleDownload = async () => {
         try {
             setDownloading(true);
+            setError('');
 
-            // TODO: Implement actual download from backend
-            // For now, just show alert
-            const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-            const downloadUrl = `${baseUrl}/api/v1/images/download/${resultFilepath.split('/').pop()}`;
+            const dlFilename = resultFilepath.split('/').pop() || filename;
 
-            // Open in new tab (browser will handle download)
-            window.open(downloadUrl, '_blank');
+            // Fetch as blob so the browser triggers a real file download
+            const response = await apiClient.get(
+                `/api/v1/images/download/${dlFilename}`,
+                { responseType: 'blob' }
+            );
 
-        } catch (error) {
-            console.error('Download error:', error);
-            alert('Error al descargar el archivo');
+            const url = URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+        } catch (err: any) {
+            console.error('Download error:', err);
+            setError('Error al descargar el archivo');
         } finally {
             setDownloading(false);
         }
@@ -44,6 +56,7 @@ export const DownloadButton: React.FC<DownloadButtonProps> = ({
                 📥 Descargar Resultado
             </Button>
             <p className={styles.filename}>{filename}</p>
+            {error && <p className={styles.error}>{error}</p>}
         </div>
     );
 };

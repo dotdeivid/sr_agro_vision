@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { useAuthStore } from '../store/authStore';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -18,14 +19,17 @@ apiClient.interceptors.request.use((config) => {
     return config;
 });
 
-// Handle 401 errors (redirect to login)
+// Handle 401 errors — clear auth state via the store so Zustand + React Router
+// handle the redirect through ProtectedRoute, avoiding a full page reload.
 apiClient.interceptors.response.use(
     (response) => response,
     (error) => {
         if (error.response?.status === 401) {
-            localStorage.removeItem('access_token');
-            window.location.href = '/login';
+            // Use getState() to access the store outside a React component
+            useAuthStore.getState().logout();
+            // Do NOT call window.location.href — let ProtectedRoute redirect
         }
         return Promise.reject(error);
     }
 );
+

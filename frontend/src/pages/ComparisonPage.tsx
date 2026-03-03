@@ -9,10 +9,11 @@ import { MetricsPanel } from '../components/comparison/MetricsPanel';
 import { DownloadButton } from '../components/comparison/DownloadButton';
 import { Button } from '../components/common/Button';
 import { useSyncMaps } from '../hooks/useSyncMaps';
-import { calculateBounds, getImageUrl } from '../utils/geoUtils';
+import { calculateBounds, calculateBoundsFromGeo, getImageUrl } from '../utils/geoUtils';
 import styles from './ComparisonPage.module.css';
 import type { InferenceResult } from '../types/inference';
 import type { ImageMetadata } from '../types/image';
+
 
 export const ComparisonPage: React.FC = () => {
     const { resultId } = useParams<{ resultId: string }>();
@@ -83,11 +84,12 @@ export const ComparisonPage: React.FC = () => {
         );
     }
 
-    // Calculate bounds
-    const bounds = calculateBounds(
-        originalImage.width || 512,
-        originalImage.height || 512
-    );
+    // Calculate bounds — use real geo bounds when available, fall back to pixel coords
+    const geoBounds = originalImage.image_metadata?.bounds as
+        [number, number, number, number] | null | undefined;
+    const bounds = geoBounds
+        ? calculateBoundsFromGeo(geoBounds)
+        : calculateBounds(originalImage.width || 512, originalImage.height || 512);
 
     // Get image URLs
     const originalUrl = getImageUrl(originalImage.filepath);

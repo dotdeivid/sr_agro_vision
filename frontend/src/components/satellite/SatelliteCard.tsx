@@ -33,13 +33,8 @@ export const SatelliteCard: React.FC<SatelliteCardProps> = ({
 
     return (
         <Card className={styles.card}>
-            {/* Thumbnail */}
             <div className={styles.thumbnail}>
-                {image.thumbnail_url ? (
-                    <img src={image.thumbnail_url} alt={image.title} className={styles.image} />
-                ) : (
-                    <div className={styles.placeholder}>🛰️</div>
-                )}
+                <div className={styles.placeholder}>🛰️</div>
 
                 {/* Cloud Cover Badge */}
                 <div className={`${styles.badge} ${getCloudCoverColor(image.cloud_cover)}`}>

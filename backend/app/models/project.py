@@ -2,7 +2,7 @@ from sqlalchemy import Column, String, DateTime, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
-from ..database import Base
+from app.database import Base
 
 class Project(Base):
     __tablename__ = "projects"

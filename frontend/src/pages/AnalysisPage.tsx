@@ -5,6 +5,7 @@ import { analysisApi } from '../api/analysis';
 import { IndexSelector } from '../components/analysis/IndexSelector';
 import { StatsPanel } from '../components/analysis/StatsPanel';
 import { Button } from '../components/common/Button';
+import { getImageUrl } from '../utils/geoUtils';
 import styles from './AnalysisPage.module.css';
 import type { ImageMetadata } from '../types/image';
 import type { IndexType, AnalysisResult } from '../types/analysis';
@@ -96,7 +97,8 @@ export const AnalysisPage: React.FC = () => {
             {result && (
                 <>
                     <div className={styles.resultImage}>
-                        <img src={result.colormap_filepath} alt="NDVI Map" />
+                        {/* getImageUrl converts the server filepath to /api/v1/images/view/{filename} */}
+                        <img src={getImageUrl(result.colormap_filepath)} alt={`${result.index_type.toUpperCase()} Map`} />
                     </div>
                     <StatsPanel stats={result.stats} indexType={result.index_type} />
                 </>

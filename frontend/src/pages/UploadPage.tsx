@@ -12,11 +12,8 @@ export const UploadPage: React.FC = () => {
     const [progress, setProgress] = useState(0);
     const [error, setError] = useState<string>('');
     const [refreshTrigger, setRefreshTrigger] = useState(0);
-
-    // Batch upload preparation (for future implementation)
-    const [selectedFiles] = useState<File[]>([]);
-    const [batchMode] = useState(false);
     const { success, error: showError } = useToast();
+
 
     const handleFileSelect = (file: File) => {
         setSelectedFile(file);
@@ -39,7 +36,8 @@ export const UploadPage: React.FC = () => {
             success(`Imagen "${selectedFile.name}" subida correctamente`);
             setSelectedFile(null);
             setProgress(0);
-            setRefreshTrigger(prev => prev + 1); // Trigger image list refresh
+            setRefreshTrigger((prev: number) => prev + 1); // Trigger image list refresh
+
 
         } catch (err: any) {
             const errorMsg = err.response?.data?.detail || 'Error al subir la imagen';

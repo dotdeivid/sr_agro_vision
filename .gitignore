@@ -37,6 +37,9 @@ runs/
 data/datasets/
 outputs/
 
+# Uploads
+backend/uploads/
+
 # Examples
 !example/test_input.png
 !example/test_result.png

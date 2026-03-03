@@ -2,7 +2,7 @@ from sqlalchemy import Column, String, DateTime, ForeignKey, Integer, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
-from ..database import Base
+from app.database import Base
 
 class Image(Base):
     __tablename__ = "images"

@@ -1,4 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { imagesApi } from '../api/images';
+import { inferenceApi } from '../api/inference';
 import { useAuth } from '../hooks/useAuth';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
@@ -6,6 +9,30 @@ import styles from './DashboardPage.module.css';
 
 export const DashboardPage: React.FC = () => {
     const { user } = useAuth();
+    const navigate = useNavigate();
+
+    const [imagesCount, setImagesCount] = useState<number | null>(null);
+    const [tasksCount, setTasksCount] = useState<number | null>(null);
+    const [loadingStats, setLoadingStats] = useState(true);
+
+    useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                setLoadingStats(true);
+                const [images, tasks] = await Promise.allSettled([
+                    imagesApi.list(),
+                    inferenceApi.listTasks()
+                ]);
+                if (images.status === 'fulfilled') setImagesCount(images.value.length);
+                if (tasks.status === 'fulfilled') setTasksCount(tasks.value.length);
+            } catch {
+                // Stats failing is non-critical
+            } finally {
+                setLoadingStats(false);
+            }
+        };
+        fetchStats();
+    }, []);
 
     return (
         <div className={styles.container}>
@@ -16,21 +43,19 @@ export const DashboardPage: React.FC = () => {
 
             <div className={styles.stats}>
                 <Card className={styles.statCard}>
-                    <div className={styles.statIcon}>📊</div>
-                    <div className={styles.statValue}>5</div>
-                    <div className={styles.statLabel}>Proyectos</div>
-                </Card>
-
-                <Card className={styles.statCard}>
                     <div className={styles.statIcon}>📷</div>
-                    <div className={styles.statValue}>23</div>
+                    <div className={styles.statValue}>
+                        {loadingStats ? '—' : (imagesCount ?? 0)}
+                    </div>
                     <div className={styles.statLabel}>Imágenes</div>
                 </Card>
 
                 <Card className={styles.statCard}>
-                    <div className={styles.statIcon}>🌾</div>
-                    <div className={styles.statValue}>156</div>
-                    <div className={styles.statLabel}>Hectáreas</div>
+                    <div className={styles.statIcon}>⚙️</div>
+                    <div className={styles.statValue}>
+                        {loadingStats ? '—' : (tasksCount ?? 0)}
+                    </div>
+                    <div className={styles.statLabel}>Tareas</div>
                 </Card>
             </div>
 
@@ -40,19 +65,19 @@ export const DashboardPage: React.FC = () => {
                     <Card className={styles.actionCard}>
                         <h3>🛰️ Descargar Sentinel-2</h3>
                         <p>Descarga imágenes satelitales de tu área de interés</p>
-                        <Button>Iniciar</Button>
+                        <Button onClick={() => navigate('/satellite')}>Iniciar</Button>
                     </Card>
 
                     <Card className={styles.actionCard}>
                         <h3>📤 Subir Imagen</h3>
                         <p>Sube tus propias imágenes GeoTIFF para procesar</p>
-                        <Button>Subir</Button>
+                        <Button onClick={() => navigate('/upload')}>Subir</Button>
                     </Card>
 
                     <Card className={styles.actionCard}>
                         <h3>🔍 Procesar SR</h3>
                         <p>Mejora la resolución de tus imágenes existentes</p>
-                        <Button>Procesar</Button>
+                        <Button onClick={() => navigate('/upload')}>Procesar</Button>
                     </Card>
                 </div>
             </div>
