@@ -163,38 +163,227 @@ def run_sr_inference(
 
 
 @celery_app.task(bind=True, base=CallbackTask)
-def run_copernicus_download(self, task_id: str, image_id: str, output_path: str):
+def run_copernicus_download_and_process(
+    self,
+    task_id: str,
+    image_id: str,
+    output_path: str,
+    user_id: str,
+    project_id: str = None,
+):
     """
-    Download a Sentinel-2 image from Copernicus Data Space (CDSE).
+    Download a Sentinel-2 image from Copernicus, process it to RGBNIR format,
+    and register it in the database so it appears in the frontend.
 
-    Args:
-        task_id:     Database Task ID
-        image_id:    Sentinel-2 product ID from CDSE search results
-        output_path: Filesystem path to save the downloaded file
+    Pipeline:
+    1. Download .zip from Copernicus
+    2. Extract .SAFE structure
+    3. Read bands B02 (Blue), B03 (Green), B04 (Red), B08 (NIR) at 10m
+    4. Normalize to [0, 1] and combine into a 4-band GeoTIFF
+    5. Register in the Image table
+    6. Cleanup temp files (.zip + extracted .SAFE)
     """
     from app.services.copernicus_service import copernicus_service
+    from app.models.image import Image
+    from app.models.project import Project
+    import zipfile
+    import shutil
 
     db = SessionLocal()
     try:
-        self.update_progress(task_id, 0, "processing")
+        # ── Step 1: Download .zip ────────────────────────────────────────
+        self.update_progress(task_id, 5, "processing")
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-        self.update_progress(task_id, 10)
 
+        logger.info(f"Downloading Sentinel-2 product: {image_id}")
         downloaded_path = copernicus_service.download_image(
-            image_id=image_id, output_path=output_path
+            image_id=image_id,
+            output_path=output_path,
         )
+        self.update_progress(task_id, 30)
+        logger.info(f"Downloaded to: {downloaded_path}")
 
-        self.mark_completed(
-            task_id, {"downloaded_path": downloaded_path, "image_id": image_id}
+        # ── Step 2: Extract .SAFE ────────────────────────────────────────
+        extract_dir = Path(output_path).parent / f"extract_{task_id}"
+        extract_dir.mkdir(exist_ok=True)
+
+        logger.info(f"Extracting .SAFE to: {extract_dir}")
+        with zipfile.ZipFile(downloaded_path, "r") as zf:
+            zf.extractall(extract_dir)
+        self.update_progress(task_id, 50)
+
+        # ── Step 3: Locate band files ────────────────────────────────────
+        safe_dir = list(extract_dir.glob("*.SAFE"))[0]
+        granule_dir = safe_dir / "GRANULE"
+
+        # L2A puts 10 m bands in R10m; L1C puts them directly in IMG_DATA
+        img_data_dirs = list(granule_dir.glob("*/IMG_DATA/R10m")) or list(
+            granule_dir.glob("*/IMG_DATA")
         )
-        return {
-            "status": "completed",
-            "downloaded_path": downloaded_path,
-            "image_id": image_id,
+        if not img_data_dirs:
+            raise ValueError("No IMG_DATA directory found in .SAFE")
+
+        img_data_dir = img_data_dirs[0]
+        logger.info(f"IMG_DATA at: {img_data_dir}")
+
+        def _find_band(band_name: str) -> Path:
+            for pattern in (
+                f"*_{band_name}_10m.jp2",
+                f"*_{band_name}.jp2",
+                f"*_{band_name}_10m.tif",
+                f"*_{band_name}.tif",
+            ):
+                hits = list(img_data_dir.glob(pattern))
+                if hits:
+                    return hits[0]
+            raise FileNotFoundError(f"Band {band_name} not found in {img_data_dir}")
+
+        b02_file = _find_band("B02")
+        b03_file = _find_band("B03")
+        b04_file = _find_band("B04")
+        b08_file = _find_band("B08")
+        logger.info("Located bands B02, B03, B04, B08")
+        self.update_progress(task_id, 60)
+
+        # ── Step 4: Read & combine bands ──────────────────────────────────
+        import rasterio
+        import rasterio.warp
+        import numpy as np
+
+        with rasterio.open(b02_file) as src:
+            b02 = src.read(1).astype(np.float32)
+            meta = src.meta.copy()
+            crs = src.crs
+            width, height = src.width, src.height
+
+        with rasterio.open(b03_file) as src:
+            b03 = src.read(1).astype(np.float32)
+        with rasterio.open(b04_file) as src:
+            b04 = src.read(1).astype(np.float32)
+        with rasterio.open(b08_file) as src:
+            b08 = src.read(1).astype(np.float32)
+
+        # Sentinel-2 reflectance is 0-10000 → normalize to [0, 1]
+        for arr in (b02, b03, b04, b08):
+            np.clip(arr, 0, 10000, out=arr)
+            arr /= 10000.0
+
+        self.update_progress(task_id, 70)
+
+        # ── Step 5: Write RGBNIR GeoTIFF ──────────────────────────────────
+        rgbnir_filename = f"sentinel_{image_id}_RGBNIR.tif"
+        rgbnir_path = Path(settings.DOWNLOAD_DIR) / rgbnir_filename
+
+        meta.update(count=4, dtype="float32", driver="GTiff", compress="lzw")
+
+        with rasterio.open(rgbnir_path, "w", **meta) as dst:
+            dst.write(b02, 1)
+            dst.write(b03, 2)
+            dst.write(b04, 3)
+            dst.write(b08, 4)
+            dst.set_band_description(1, "Blue (B02)")
+            dst.set_band_description(2, "Green (B03)")
+            dst.set_band_description(3, "Red (B04)")
+            dst.set_band_description(4, "NIR (B08)")
+
+        self.update_progress(task_id, 80)
+        logger.info(f"RGBNIR file written: {rgbnir_path}")
+
+        # ── Step 6: Register in DB ────────────────────────────────────────
+        # Resolve or create project
+        effective_project_id = project_id
+        if not effective_project_id or effective_project_id == "default":
+            project = (
+                db.query(Project)
+                .filter(Project.user_id == user_id, Project.name == "default")
+                .first()
+            )
+            if not project:
+                project = Project(
+                    name="default",
+                    description="Default project for Sentinel-2 downloads",
+                    user_id=user_id,
+                )
+                db.add(project)
+                db.commit()
+                db.refresh(project)
+            effective_project_id = project.id
+
+        file_size = rgbnir_path.stat().st_size
+
+        with rasterio.open(rgbnir_path) as src:
+            bounds = src.bounds
+            if src.crs and str(src.crs) != "EPSG:4326":
+                bounds_wgs84 = rasterio.warp.transform_bounds(
+                    src.crs,
+                    "EPSG:4326",
+                    bounds.left,
+                    bounds.bottom,
+                    bounds.right,
+                    bounds.top,
+                )
+            else:
+                bounds_wgs84 = (bounds.left, bounds.bottom, bounds.right, bounds.top)
+
+        image_record = Image(
+            filename=rgbnir_filename,
+            filepath=str(rgbnir_path),
+            file_size=file_size,
+            width=width,
+            height=height,
+            num_channels=4,
+            image_metadata={
+                "bounds": list(bounds_wgs84),
+                "crs": str(crs),
+                "dtype": "float32",
+                "sentinel_product_id": image_id,
+                "bands": ["Blue (B02)", "Green (B03)", "Red (B04)", "NIR (B08)"],
+                "source": "Copernicus Data Space Ecosystem",
+            },
+            project_id=effective_project_id,
+        )
+        db.add(image_record)
+        db.commit()
+        db.refresh(image_record)
+        logger.info(f"Image registered in DB: {image_record.id}")
+        self.update_progress(task_id, 90)
+
+        # ── Step 7: Cleanup temp files ────────────────────────────────────
+        try:
+            shutil.rmtree(extract_dir, ignore_errors=True)
+            Path(downloaded_path).unlink(missing_ok=True)
+            logger.info("Temp files cleaned up")
+        except Exception as e:
+            logger.warning(f"Cleanup warning: {e}")
+
+        # ── Done ──────────────────────────────────────────────────────────
+        result_payload = {
+            "image_db_id": image_record.id,
+            "filename": rgbnir_filename,
+            "sentinel_product_id": image_id,
+            "bands": 4,
+            "width": width,
+            "height": height,
+            "file_size": file_size,
         }
+        self.mark_completed(task_id, result_payload)
+        logger.info(f"✅ Sentinel-2 download & processing completed: {image_id}")
+        return {"status": "completed", "image_id": image_record.id}
 
     except Exception as e:
+        import traceback
+
+        error_msg = f"{type(e).__name__}: {e}\n{traceback.format_exc()}"
+        logger.error(f"Task failed: {error_msg}")
         self.mark_failed(task_id, str(e))
+        # Best-effort cleanup
+        try:
+            if "extract_dir" in locals():
+                shutil.rmtree(extract_dir, ignore_errors=True)
+            if "downloaded_path" in locals():
+                Path(downloaded_path).unlink(missing_ok=True)
+        except Exception:
+            pass
         raise
     finally:
         db.close()

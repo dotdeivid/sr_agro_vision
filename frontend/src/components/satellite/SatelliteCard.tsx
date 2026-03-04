@@ -80,7 +80,7 @@ export const SatelliteCard: React.FC<SatelliteCardProps> = ({
                     disabled={downloading}
                     fullWidth
                 >
-                    {downloading ? 'Descargando...' : '📥 Descargar'}
+                    {downloading ? 'Descargando...' : 'Descargar'}
                 </Button>
             </div>
         </Card>

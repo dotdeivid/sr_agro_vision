@@ -2,7 +2,7 @@ import React from 'react';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { ToastContainer } from '../common/Toast';
-import { useToast } from '../../hooks/useToast';
+import { useToastStore } from '../../store/toastStore';
 import styles from './Layout.module.css';
 
 interface LayoutProps {
@@ -10,7 +10,7 @@ interface LayoutProps {
 }
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
-    const { toasts, removeToast } = useToast();
+    const { toasts, removeToast } = useToastStore();
 
     return (
         <div className={styles.layout}>
@@ -25,3 +25,4 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
     );
 };
+

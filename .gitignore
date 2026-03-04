@@ -39,6 +39,7 @@ outputs/
 
 # Uploads
 backend/uploads/
+backend/downloads/
 
 # Examples
 !example/test_input.png

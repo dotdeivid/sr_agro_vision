@@ -21,8 +21,10 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onDelete }) => {
         return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
     };
 
-    const formatDate = (dateString: string): string => {
+    const formatDate = (dateString?: string): string => {
+        if (!dateString) return '—';
         const date = new Date(dateString);
+        if (isNaN(date.getTime())) return '—';
         return date.toLocaleDateString('es-ES', {
             day: '2-digit',
             month: 'short',
@@ -45,7 +47,7 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onDelete }) => {
     return (
         <Card className={styles.card}>
             <div className={styles.thumbnail}>
-                <div className={styles.icon}>🖼️</div>
+                <div className={styles.icon}>🛰️</div>
             </div>
 
             <div className={styles.info}>
@@ -75,20 +77,20 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onDelete }) => {
 
                     <div className={styles.metaItem}>
                         <span className={styles.metaLabel}>Fecha:</span>
-                        <span className={styles.metaValue}>{formatDate(image.created_at)}</span>
+                        <span className={styles.metaValue}>{formatDate(image.uploaded_at || image.created_at)}</span>
                     </div>
                 </div>
             </div>
 
             <div className={styles.actions}>
                 <Button onClick={handleProcessSR} size="sm">
-                    🔍 Procesar SR
+                    Procesar
                 </Button>
                 <Button onClick={() => navigate(`/analysis/${image.id}`)} size="sm" variant="secondary">
-                    🌿 Análisis
+                    Análisis
                 </Button>
                 <Button onClick={handleDelete} variant="danger" size="sm">
-                    🗑️ Eliminar
+                    Eliminar
                 </Button>
             </div>
         </Card>

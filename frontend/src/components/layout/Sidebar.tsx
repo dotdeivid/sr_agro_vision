@@ -34,6 +34,15 @@ export const Sidebar: React.FC = () => {
                 </NavLink>
 
                 <NavLink
+                    to="/my-images"
+                    className={({ isActive }) =>
+                        isActive ? `${styles.navItem} ${styles.active}` : styles.navItem
+                    }
+                >
+                    🖼️ Mis Imágenes
+                </NavLink>
+
+                <NavLink
                     to="/projects"
                     className={({ isActive }) =>
                         isActive ? `${styles.navItem} ${styles.active}` : styles.navItem
@@ -41,6 +50,7 @@ export const Sidebar: React.FC = () => {
                 >
                     📁 Proyectos
                 </NavLink>
+
             </nav>
         </aside>
     );

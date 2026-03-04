@@ -77,14 +77,17 @@ def get_task_status(
         raise HTTPException(status_code=404, detail="Task not found")
 
     result_id = None
+    image_db_id = None
     if task.status == "completed" and task.result:
         result_id = task.result.get("result_id")
+        image_db_id = task.result.get("image_db_id")
 
     return InferenceStatus(
         task_id=task.id,
         status=task.status,
         progress=task.progress,
         result_id=result_id,
+        image_db_id=image_db_id,
         error=task.error,
     )
 

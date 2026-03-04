@@ -31,20 +31,6 @@
     text-align: center;
 }
 
-.info {
-    background-color: var(--gray-50);
-    border-left: 4px solid var(--primary);
-    padding: var(--space-md);
-    border-radius: var(--radius-md);
-}
-
-.infoText {
-    margin: 0;
-    font-size: var(--text-sm);
-    color: var(--gray-700);
-    font-weight: var(--font-medium);
-}
-
 .help {
     background-color: white;
     border-radius: var(--radius-lg);
@@ -70,4 +56,73 @@
 .helpList li {
     color: var(--gray-700);
     font-size: var(--text-sm);
+}
+
+/* ── Download task panel ────────────────────────────── */
+
+.downloadTasks {
+    background-color: white;
+    border-radius: var(--radius-lg);
+    padding: var(--space-lg);
+    box-shadow: var(--shadow-sm);
+}
+
+.downloadTasksTitle {
+    font-size: var(--text-lg);
+    font-weight: var(--font-semibold);
+    color: var(--gray-900);
+    margin-bottom: var(--space-md);
+}
+
+.downloadTask {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm) 0;
+    border-bottom: 1px solid var(--gray-100);
+}
+
+.downloadTask:last-child {
+    border-bottom: none;
+}
+
+.downloadTaskId {
+    font-size: var(--text-xs);
+    color: var(--gray-500);
+    font-family: monospace;
+}
+
+.downloadTaskStatus {
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
+    color: var(--gray-700);
+    margin-left: auto;
+}
+
+.progressBar {
+    width: 100%;
+    height: 6px;
+    background-color: var(--gray-100);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progressFill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary), var(--secondary));
+    border-radius: 3px;
+    transition: width 0.4s ease;
+}
+
+.completedActions {
+    display: flex;
+    gap: var(--space-sm);
+    align-items: center;
+    width: 100%;
+    margin-top: var(--space-xs);
+}
+
+.completedActions button {
+    flex: 1;
 }

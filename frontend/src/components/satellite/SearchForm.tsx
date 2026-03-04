@@ -150,7 +150,7 @@ export const SearchForm: React.FC<SearchFormProps> = ({ onSearch, loading }) => 
             </div>
 
             <Button type="submit" loading={loading} disabled={loading} fullWidth>
-                🛰️ Buscar Imágenes Sentinel-2
+                Buscar Imágenes
             </Button>
         </form>
     );

@@ -42,7 +42,7 @@ export const DashboardPage: React.FC = () => {
             </p>
 
             <div className={styles.stats}>
-                <Card className={styles.statCard}>
+                <Card className={`${styles.statCard} ${styles.clickable}`} onClick={() => navigate('/my-images')}>
                     <div className={styles.statIcon}>📷</div>
                     <div className={styles.statValue}>
                         {loadingStats ? '—' : (imagesCount ?? 0)}
@@ -50,7 +50,7 @@ export const DashboardPage: React.FC = () => {
                     <div className={styles.statLabel}>Imágenes</div>
                 </Card>
 
-                <Card className={styles.statCard}>
+                <Card className={`${styles.statCard} ${styles.clickable}`} onClick={() => navigate('/my-tasks')}>
                     <div className={styles.statIcon}>⚙️</div>
                     <div className={styles.statValue}>
                         {loadingStats ? '—' : (tasksCount ?? 0)}
@@ -63,7 +63,7 @@ export const DashboardPage: React.FC = () => {
                 <h2 className={styles.sectionTitle}>Acciones Rápidas</h2>
                 <div className={styles.actionGrid}>
                     <Card className={styles.actionCard}>
-                        <h3>🛰️ Descargar Sentinel-2</h3>
+                        <h3>🛰️ Descargar Imágenes</h3>
                         <p>Descarga imágenes satelitales de tu área de interés</p>
                         <Button onClick={() => navigate('/satellite')}>Iniciar</Button>
                     </Card>
@@ -75,7 +75,7 @@ export const DashboardPage: React.FC = () => {
                     </Card>
 
                     <Card className={styles.actionCard}>
-                        <h3>🔍 Procesar SR</h3>
+                        <h3>🔍 Procesar</h3>
                         <p>Mejora la resolución de tus imágenes existentes</p>
                         <Button onClick={() => navigate('/upload')}>Procesar</Button>
                     </Card>

@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     # Almacenamiento — obligatorio en .env
     # -------------------------------------------------------------------------
     UPLOAD_DIR: str
+    DOWNLOAD_DIR: str = "./downloads"  # Copernicus downloads saved here
     MAX_UPLOAD_SIZE: int
     SR_OUTPUT_DIR: str
 

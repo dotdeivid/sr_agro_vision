@@ -7,7 +7,7 @@ import { ProcessingStatus } from '../components/process/ProcessingStatus';
 import { ResultCard } from '../components/process/ResultCard';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
-import { useToast } from '../hooks/useToast';
+import { useToastStore } from '../store/toastStore';
 import styles from './ProcessPage.module.css';
 import type { ImageMetadata } from '../types/image';
 import type { ModelType, ScaleFactor, TaskStatus, InferenceResult } from '../types/inference';
@@ -15,7 +15,7 @@ import type { ModelType, ScaleFactor, TaskStatus, InferenceResult } from '../typ
 export const ProcessPage: React.FC = () => {
     const { imageId } = useParams<{ imageId: string }>();
     const navigate = useNavigate();
-    const { success, error: showError } = useToast();
+    const { success, error: showError } = useToastStore();
 
     // Image state
     const [image, setImage] = useState<ImageMetadata | null>(null);

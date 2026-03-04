@@ -53,7 +53,7 @@ export const DownloadButton: React.FC<DownloadButtonProps> = ({
                 disabled={downloading}
                 size="lg"
             >
-                📥 Descargar Resultado
+                Descargar Resultado
             </Button>
             <p className={styles.filename}>{filename}</p>
             {error && <p className={styles.error}>{error}</p>}

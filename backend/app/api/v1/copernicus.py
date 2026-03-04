@@ -58,18 +58,18 @@ async def download_satellite_image(
     db: Session = Depends(get_db),
 ):
     """
-    Download a Sentinel-2 image asynchronously via Celery.
-    Use the returned task_id to poll status via GET /api/v1/inference/status/{task_id}.
+    Download a Sentinel-2 image, process it to RGBNIR format, and register
+    it in the DB so it appears in the frontend via GET /api/v1/images/.
     """
     try:
-        from app.tasks.processing_tasks import run_copernicus_download
+        from app.tasks.processing_tasks import run_copernicus_download_and_process
         from app.core.config import settings
         from pathlib import Path
 
         task_id = str(uuid.uuid4())
-        output_path = str(
-            Path(settings.UPLOAD_DIR) / f"sentinel_{request.image_id}.zip"
-        )
+        download_dir = Path(settings.DOWNLOAD_DIR)
+        download_dir.mkdir(parents=True, exist_ok=True)
+        output_path = str(download_dir / f"temp_sentinel_{request.image_id}.zip")
 
         # Create Task record in DB
         db_task = Task(
@@ -77,21 +77,34 @@ async def download_satellite_image(
             type="copernicus_download",
             status="queued",
             progress=0,
-            config={"image_id": request.image_id, "output_path": output_path},
+            user_id=current_user.id,
+            config={
+                "image_id": request.image_id,
+                "output_path": output_path,
+                "project_id": request.project_id,
+            },
             created_at=datetime.utcnow(),
         )
         db.add(db_task)
         db.commit()
 
         # Dispatch Celery task
-        run_copernicus_download.delay(
-            task_id=task_id, image_id=request.image_id, output_path=output_path
+        run_copernicus_download_and_process.delay(
+            task_id=task_id,
+            image_id=request.image_id,
+            output_path=output_path,
+            user_id=current_user.id,
+            project_id=request.project_id,
         )
 
         return {
             "task_id": task_id,
             "status": "queued",
-            "message": "Download task queued successfully. Poll status via /api/v1/inference/status/{task_id}",
+            "message": (
+                "Download and processing queued. "
+                "Poll status via /api/v1/inference/status/{task_id}. "
+                "When completed, the image will appear in /api/v1/images/."
+            ),
         }
     except Exception as e:
         logger.error(f"Error initiating download: {e}")

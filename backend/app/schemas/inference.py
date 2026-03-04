@@ -20,6 +20,7 @@ class InferenceStatus(BaseModel):
     status: str
     progress: int
     result_id: Optional[str] = None
+    image_db_id: Optional[str] = None  # set for copernicus download tasks
     error: Optional[str] = None
 
 

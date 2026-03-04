@@ -20,9 +20,8 @@ export interface TaskStatusResponse {
     status: TaskStatus;
     progress: number;
     result_id: string | null;
+    image_db_id: string | null;
     error: string | null;
-    // Note: created_at / updated_at are NOT returned by the backend InferenceStatus
-    // schema — they were removed to avoid undefined values.
 }
 
 export interface InferenceResult {

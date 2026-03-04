@@ -8,6 +8,10 @@ import { ProcessPage } from './pages/ProcessPage';
 import { ComparisonPage } from './pages/ComparisonPage';
 import { SatellitePage } from './pages/SatellitePage';
 import { AnalysisPage } from './pages/AnalysisPage';
+import { MyImagesPage } from './pages/MyImagesPage';
+import { MyTasksPage } from './pages/MyTasksPage';
+import { ProjectsPage } from './pages/ProjectsPage';
+import { ProjectDetailPage } from './pages/ProjectDetailPage';
 import { Layout } from './components/layout/Layout';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { useAuthStore } from './store/authStore';
@@ -92,6 +96,50 @@ function App() {
                             <ProtectedRoute>
                                 <Layout>
                                     <AnalysisPage />
+                                </Layout>
+                            </ProtectedRoute>
+                        }
+                    />
+
+                    <Route
+                        path="/my-images"
+                        element={
+                            <ProtectedRoute>
+                                <Layout>
+                                    <MyImagesPage />
+                                </Layout>
+                            </ProtectedRoute>
+                        }
+                    />
+
+                    <Route
+                        path="/my-tasks"
+                        element={
+                            <ProtectedRoute>
+                                <Layout>
+                                    <MyTasksPage />
+                                </Layout>
+                            </ProtectedRoute>
+                        }
+                    />
+
+                    <Route
+                        path="/projects"
+                        element={
+                            <ProtectedRoute>
+                                <Layout>
+                                    <ProjectsPage />
+                                </Layout>
+                            </ProtectedRoute>
+                        }
+                    />
+
+                    <Route
+                        path="/projects/:projectId"
+                        element={
+                            <ProtectedRoute>
+                                <Layout>
+                                    <ProjectDetailPage />
                                 </Layout>
                             </ProtectedRoute>
                         }

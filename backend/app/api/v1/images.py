@@ -229,3 +229,69 @@ def get_image(
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")
     return image
+
+
+@router.delete("/{image_id}", status_code=204)
+def delete_image(
+    image_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """Delete an image — removes DB record and physical file"""
+    image = (
+        db.query(Image)
+        .join(Project, Image.project_id == Project.id)
+        .filter(Image.id == image_id, Project.user_id == current_user.id)
+        .first()
+    )
+    if not image:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    # Remove physical file
+    try:
+        file_path = Path(image.filepath)
+        if file_path.exists():
+            file_path.unlink()
+            logger.info(f"Deleted file: {file_path}")
+    except Exception as e:
+        logger.warning(f"Could not delete file {image.filepath}: {e}")
+
+    db.delete(image)
+    db.commit()
+    logger.info(f"Deleted image record: {image_id}")
+
+
+@router.patch("/{image_id}/move", response_model=ImageResponse)
+def move_image_to_project(
+    image_id: str,
+    project_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """Move an image to a different project"""
+    # Verify image exists and belongs to user
+    image = (
+        db.query(Image)
+        .join(Project, Image.project_id == Project.id)
+        .filter(Image.id == image_id, Project.user_id == current_user.id)
+        .first()
+    )
+    if not image:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    # Verify target project exists and belongs to user
+    target_project = (
+        db.query(Project)
+        .filter(Project.id == project_id, Project.user_id == current_user.id)
+        .first()
+    )
+    if not target_project:
+        raise HTTPException(status_code=404, detail="Target project not found")
+
+    image.project_id = project_id
+    db.commit()
+    db.refresh(image)
+    logger.info(
+        f"Moved image {image_id} to project {project_id} ({target_project.name})"
+    )
+    return image

@@ -3,7 +3,7 @@ import { FileUploader } from '../components/upload/FileUploader';
 import { ImagePreview } from '../components/upload/ImagePreview';
 import { ImageList } from '../components/upload/ImageList';
 import { imagesApi } from '../api/images';
-import { useToast } from '../hooks/useToast';
+import { useToastStore } from '../store/toastStore';
 import styles from './UploadPage.module.css';
 
 export const UploadPage: React.FC = () => {
@@ -12,7 +12,7 @@ export const UploadPage: React.FC = () => {
     const [progress, setProgress] = useState(0);
     const [error, setError] = useState<string>('');
     const [refreshTrigger, setRefreshTrigger] = useState(0);
-    const { success, error: showError } = useToast();
+    const { success, error: showError } = useToastStore();
 
 
     const handleFileSelect = (file: File) => {

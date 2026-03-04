@@ -53,4 +53,14 @@ export const imagesApi = {
     delete: async (id: string): Promise<void> => {
         await apiClient.delete(`/api/v1/images/${id}`);
     },
+
+    /**
+     * Move image to a different project
+     */
+    moveToProject: async (imageId: string, projectId: string): Promise<ImageMetadata> => {
+        const response = await apiClient.patch(
+            `/api/v1/images/${imageId}/move?project_id=${projectId}`
+        );
+        return response.data;
+    },
 };
